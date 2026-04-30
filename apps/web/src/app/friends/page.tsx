@@ -65,7 +65,7 @@ export default function FriendsPage() {
 
       const res = await api.friends.list(params)
       if (res.success) {
-        setFriends(res.data.items)
+        setFriends(res.data.items.filter((f) => f.displayName && f.displayName.trim() !== ''))
         setTotal(res.data.total)
         setHasNextPage(res.data.hasNextPage)
       } else {
