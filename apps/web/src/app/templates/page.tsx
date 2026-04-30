@@ -62,6 +62,7 @@ export default function TemplatesPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [showCreate, setShowCreate] = useState(false)
+  const [editingTemplate, setEditingTemplate] = useState<Template | null>(null)
   const [selectedCategory, setSelectedCategory] = useState<string>('all')
   const [form, setForm] = useState<CreateFormState>({
     name: '',
@@ -99,6 +100,18 @@ export default function TemplatesPage() {
     new Set(templates.map((t) => t.category).filter(Boolean))
   )
 
+  const handleEdit = (template: Template) => {
+    setEditingTemplate(template)
+    setForm({
+      name: template.name,
+      category: template.category,
+      messageType: template.messageType,
+      messageContent: template.messageContent,
+    })
+    setShowCreate(true)
+    setFormError('')
+  }
+
   const handleCreate = async () => {
     if (!form.name.trim()) {
       setFormError('テンプレート名を入力してください')
@@ -115,14 +128,22 @@ export default function TemplatesPage() {
     setSaving(true)
     setFormError('')
     try {
-      const res = await api.templates.create({
-        name: form.name,
-        category: form.category,
-        messageType: form.messageType,
-        messageContent: form.messageContent,
-      })
+      const res = editingTemplate
+        ? await api.templates.update(editingTemplate.id, {
+            name: form.name,
+            category: form.category,
+            messageType: form.messageType,
+            messageContent: form.messageContent,
+          })
+        : await api.templates.create({
+            name: form.name,
+            category: form.category,
+            messageType: form.messageType,
+            messageContent: form.messageContent,
+          })
       if (res.success) {
         setShowCreate(false)
+        setEditingTemplate(null)
         setForm({ name: '', category: '', messageType: 'text', messageContent: '' })
         load()
       } else {
@@ -151,7 +172,7 @@ export default function TemplatesPage() {
         title="テンプレート管理"
         action={
           <button
-            onClick={() => setShowCreate(true)}
+            onClick={() => { setShowCreate(true); setEditingTemplate(null); setForm({ name: '', category: '', messageType: 'text', messageContent: '' }); setFormError('') }}
             className="px-4 py-2 text-sm font-medium text-white rounded-lg transition-opacity hover:opacity-90"
             style={{ backgroundColor: '#06C755' }}
           >
@@ -201,7 +222,7 @@ export default function TemplatesPage() {
       {/* Create form */}
       {showCreate && (
         <div className="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-          <h2 className="text-sm font-semibold text-gray-800 mb-4">新規テンプレートを作成</h2>
+          <h2 className="text-sm font-semibold text-gray-800 mb-4">{editingTemplate ? 'テンプレート編集' : 'テンプレート新規作成'}</h2>
           <div className="space-y-4 max-w-lg">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">テンプレート名 <span className="text-red-500">*</span></label>
@@ -340,12 +361,20 @@ export default function TemplatesPage() {
 
                   {/* Actions */}
                   <td className="px-4 py-3 text-right">
-                    <button
-                      onClick={() => handleDelete(template.id)}
-                      className="px-3 py-1 text-xs font-medium text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
-                    >
-                      削除
-                    </button>
+                    <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => handleEdit(template)}
+                        className="px-3 py-1 text-xs font-medium text-blue-500 hover:text-blue-700 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
+                      >
+                        編集
+                      </button>
+                      <button
+                        onClick={() => handleDelete(template.id)}
+                        className="px-3 py-1 text-xs font-medium text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
+                      >
+                        削除
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
