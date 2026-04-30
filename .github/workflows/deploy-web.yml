@@ -28,7 +28,7 @@ jobs:
 
       - run: pnpm --filter web build
         env:
-          NEXT_PUBLIC_WORKER_URL: ${{ vars.NEXT_PUBLIC_WORKER_URL }}
+          NEXT_PUBLIC_API_URL: ${{ vars.NEXT_PUBLIC_WORKER_URL }}
 
       - uses: cloudflare/wrangler-action@v3
         with:
