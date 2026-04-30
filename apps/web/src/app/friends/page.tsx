@@ -38,6 +38,7 @@ export default function FriendsPage() {
   const [page, setPage] = useState(1)
   const [hasNextPage, setHasNextPage] = useState(false)
   const [selectedTagId, setSelectedTagId] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -59,6 +60,7 @@ export default function FriendsPage() {
         limit: String(PAGE_SIZE),
       }
       if (selectedTagId) params.tagId = selectedTagId
+      if (searchQuery) params.search = searchQuery
       if (selectedAccountId) params.accountId = selectedAccountId
 
       const res = await api.friends.list(params)
@@ -74,7 +76,7 @@ export default function FriendsPage() {
     } finally {
       setLoading(false)
     }
-  }, [page, selectedTagId, selectedAccountId])
+  }, [page, selectedTagId, searchQuery, selectedAccountId])
 
   useEffect(() => {
     loadTags()
@@ -82,7 +84,7 @@ export default function FriendsPage() {
 
   useEffect(() => {
     setPage(1)
-  }, [selectedTagId, selectedAccountId])
+  }, [selectedTagId, searchQuery, selectedAccountId])
 
   useEffect(() => {
     loadFriends()
@@ -99,6 +101,13 @@ export default function FriendsPage() {
       {/* Filters */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 mb-4">
         <div className="flex items-center gap-2">
+          <input
+            type="text"
+            placeholder="名前で検索..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            className="text-sm border border-gray-300 rounded-lg px-3 py-2 min-h-[44px] bg-white focus:outline-none focus:ring-2 focus:ring-green-500 w-48"
+          />
           <label className="text-sm text-gray-600 font-medium whitespace-nowrap">タグで絞り込み:</label>
           <select
             className="text-sm border border-gray-300 rounded-lg px-3 py-2 min-h-[44px] bg-white focus:outline-none focus:ring-2 focus:ring-green-500 flex-1 sm:flex-none"
