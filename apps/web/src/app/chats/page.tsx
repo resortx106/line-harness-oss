@@ -360,6 +360,10 @@ export default function ChatsPage() {
 
   useEffect(() => {
     loadChats()
+    const interval = setInterval(() => {
+      loadChats()
+    }, 30000)
+    return () => clearInterval(interval)
   }, [loadChats])
 
   useEffect(() => {
