@@ -23,7 +23,7 @@ const MATCH_TYPE_LABELS: Record<string, string> = {
 
 const defaultForm = {
   keyword: '',
-  matchType: 'contains' as const,
+  matchType: 'contains' as 'exact' | 'contains',
   responseType: 'text',
   responseContent: '',
 }
@@ -35,7 +35,7 @@ export default function AutoRepliesPage() {
   const [error, setError] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editItem, setEditItem] = useState<AutoReply | null>(null)
-  const [form, setForm] = useState(defaultForm)
+  const [form, setForm] = useState<{keyword:string;matchType:'exact'|'contains';responseType:string;responseContent:string}>(defaultForm)
   const [saving, setSaving] = useState(false)
 
   const load = useCallback(async () => {
