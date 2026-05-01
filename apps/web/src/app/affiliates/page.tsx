@@ -4,8 +4,6 @@ import { useState, useEffect, useCallback } from 'react'
 import { fetchApi } from '@/lib/api'
 import { useAccount } from '@/contexts/account-context'
 
-const WORKER_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787'
-
 interface Affiliate {
   id: string
   name: string
@@ -39,7 +37,7 @@ export default function AffiliatesPage() {
     setError('')
     try {
       const params = selectedAccountId ? `?accountId=${selectedAccountId}` : ''
-      const data = await fetchApi<Affiliate[] | { items: Affiliate[] } | { success: boolean; data: Affiliate[] }>(`${WORKER_BASE}/api/affiliates${params}`)
+      const data = await fetchApi<Affiliate[] | { items: Affiliate[] } | { success: boolean; data: Affiliate[] }>(`/api/affiliates${params}`)
       if (Array.isArray(data)) {
         setAffiliates(data)
       } else if ('items' in data && Array.isArray(data.items)) {
@@ -59,7 +57,7 @@ export default function AffiliatesPage() {
   const loadLineAccount = useCallback(async () => {
     try {
       const params = selectedAccountId ? `?accountId=${selectedAccountId}` : ''
-      const data = await fetchApi<LineAccount[] | { items: LineAccount[] }>(`${WORKER_BASE}/api/line-accounts${params}`)
+      const data = await fetchApi<LineAccount[] | { items: LineAccount[] }>(`/api/line-accounts${params}`)
       const accounts = Array.isArray(data) ? data : (data.items || [])
       if (accounts.length > 0) setLineAccount(accounts[0])
     } catch {
@@ -112,7 +110,7 @@ export default function AffiliatesPage() {
     try {
       const body = { name: formName.trim(), code: formCode.trim() }
       const url = editingId
-        ? `${WORKER_BASE}/api/affiliates/${editingId}`
+        ? `/api/affiliates/${editingId}`
         : `${WORKER_BASE}/api/affiliates`
       const method = editingId ? 'PUT' : 'POST'
       await fetchApi<unknown>(url, {
@@ -132,7 +130,7 @@ export default function AffiliatesPage() {
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`「${name}」を削除しますか？`)) return
     try {
-      await fetchApi<unknown>(`${WORKER_BASE}/api/affiliates/${id}`, { method: 'DELETE' })
+      await fetchApi<unknown>(`/api/affiliates/${id}`, { method: 'DELETE' })
       await loadAffiliates()
     } catch {
       alert('削除に失敗しました')
