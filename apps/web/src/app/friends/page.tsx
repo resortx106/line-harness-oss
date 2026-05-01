@@ -11,20 +11,20 @@ import { useAccount } from '@/contexts/account-context'
 
 const ccPrompts = [
   {
-    title: 'åã ã¡ã®ã»ã°ã¡ã³ãåæ',
-    prompt: `åã ã¡ä¸è¦§ã®ãã¼ã¿ãåæãã¦ãã ããã
-1. ã¿ã°å¥ã®åã ã¡æ°ãéè¨
-2. ã¢ã¯ãã£ãçã®é«ãã»ã°ã¡ã³ããç¹å®
-3. ã¨ã³ã²ã¼ã¸ã¡ã³ããä½ãå±¤ã¸ã®æ½ç­ãææ¡
-ã¬ãã¼ãå½¢å¼ã§åºåãã¦ãã ããã`,
+    title: '友だちのセグメント分析',
+    prompt: `友だち一覧のデータを分析してください。
+1. タグ別の友だち数を集計
+2. アクティブ率の高いセグメントを特定
+3. エンゲージメントが低い層への施策を提案
+レポート形式で出力してください。`,
   },
   {
-    title: 'ã¿ã°ä¸æ¬ç®¡ç',
-    prompt: `åã ã¡ã®ã¿ã°ãä¸æ¬ç®¡çãã¦ãã ããã
-1. æªã¿ã°ã®åã ã¡ãç¹å®
-2. è¡åå±¥æ­´ã«åºã¥ããã¿ã°ä»ãææ¡
-3. ä¸è¦ã¿ã°ã®æ´ç
-ä½æ¥­æé ãç¤ºãã¦ãã ããã`,
+    title: 'タグ一括管理',
+    prompt: `友だちのタグを一括管理してください。
+1. 未タグの友だちを特定
+2. 行動履歴に基づいたタグ付け提案
+3. 不要タグの整理
+作業手順を示してください。`,
   },
 ]
 
@@ -47,7 +47,7 @@ export default function FriendsPage() {
       const res = await api.tags.list()
       if (res.success) setAllTags(res.data)
     } catch {
-      // Non-blocking â tags used for filter
+      // Non-blocking - tags used for filter
     }
   }, [])
 
@@ -65,14 +65,14 @@ export default function FriendsPage() {
 
       const res = await api.friends.list(params)
       if (res.success) {
-        setFriends(res.data.items.filter((f) => f.displayName && f.displayName.trim() !== ''))
+        setFriends(res.data.items.filter((f: FriendWithTags) => f.displayName && f.displayName.trim() !== ''))
         setTotal(res.data.total)
         setHasNextPage(res.data.hasNextPage)
       } else {
         setError(res.error)
       }
     } catch {
-      setError('åã ã¡ã®èª­ã¿è¾¼ã¿ã«å¤±æãã¾ãããããä¸åº¦ãè©¦ããã ããã')
+      setError('友だちの読み込みに失敗しました。もう一度お試しください。')
     } finally {
       setLoading(false)
     }
@@ -96,32 +96,32 @@ export default function FriendsPage() {
 
   return (
     <div>
-      <Header title="åã ã¡ç®¡ç" />
+      <Header title="友だち管理" />
 
       {/* Filters */}
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3 mb-4">
         <div className="flex items-center gap-2">
           <input
             type="text"
-            placeholder="ååã§æ¤ç´¢..."
+            placeholder="名前で検索..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="text-sm border border-gray-300 rounded-lg px-3 py-2 min-h-[44px] bg-white focus:outline-none focus:ring-2 focus:ring-green-500 w-48"
           />
-          <label className="text-sm text-gray-600 font-medium whitespace-nowrap">ã¿ã°ã§çµãè¾¼ã¿:</label>
+          <label className="text-sm text-gray-600 font-medium whitespace-nowrap">タグで絞り込み:</label>
           <select
             className="text-sm border border-gray-300 rounded-lg px-3 py-2 min-h-[44px] bg-white focus:outline-none focus:ring-2 focus:ring-green-500 flex-1 sm:flex-none"
             value={selectedTagId}
             onChange={(e) => handleTagFilter(e.target.value)}
           >
-            <option value="">ãã¹ã¦</option>
+            <option value="">すべて</option>
             {allTags.map((tag) => (
               <option key={tag.id} value={tag.id}>{tag.name}</option>
             ))}
           </select>
         </div>
         <span className="text-sm text-gray-500">
-          {loading ? 'èª­ã¿è¾¼ã¿ä¸­...' : `${total.toLocaleString('ja-JP')} ä»¶`}
+          {loading ? '読み込み中...' : `${total.toLocaleString('ja-JP')} 件`}
         </span>
       </div>
 
@@ -160,7 +160,7 @@ export default function FriendsPage() {
       {!loading && total > 0 && (
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between mt-4">
           <p className="text-sm text-gray-500">
-            {((page - 1) * PAGE_SIZE) + 1}ã{Math.min(page * PAGE_SIZE, total)} ä»¶ / å¨{total.toLocaleString('ja-JP')}ä»¶
+            {((page - 1) * PAGE_SIZE) + 1}〜{Math.min(page * PAGE_SIZE, total)} 件 / 全{total.toLocaleString('ja-JP')}件
           </p>
           <div className="flex items-center gap-2">
             <button
@@ -168,15 +168,15 @@ export default function FriendsPage() {
               disabled={page === 1}
               className="px-3 py-2 min-h-[44px] text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
-              åã¸
+              前へ
             </button>
-            <span className="text-sm text-gray-600 px-1">{page} ãã¼ã¸</span>
+            <span className="text-sm text-gray-600 px-1">{page} ページ</span>
             <button
               onClick={() => setPage((p) => p + 1)}
               disabled={!hasNextPage}
               className="px-3 py-2 min-h-[44px] text-sm border border-gray-300 rounded-lg bg-white hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
             >
-              æ¬¡ã¸
+              次へ
             </button>
           </div>
         </div>
