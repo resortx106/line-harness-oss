@@ -1,5 +1,4 @@
 'use client'
-
 import { useState, useEffect, useCallback } from 'react'
 import { fetchApi } from '@/lib/api'
 import { useAccount } from '@/contexts/account-context'
@@ -31,6 +30,7 @@ export default function AffiliatesPage() {
   const [formCode, setFormCode] = useState('')
   const [saving, setSaving] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
+  const [qrTarget, setQrTarget] = useState<{ code: string; url: string } | null>(null)
 
   const loadAffiliates = useCallback(async () => {
     setLoading(true)
@@ -75,12 +75,30 @@ export default function AffiliatesPage() {
     return `https://line.me/R/ti/p/@${lineAccount.channelId}?ref=${code}`
   }
 
+  const getQrUrl = (link: string) =>
+    `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(link)}&size=300x300&margin=10`
+
   const copyLink = async (code: string) => {
     const link = getLineLink(code)
     if (!link) return
     await navigator.clipboard.writeText(link)
     setCopied(code)
     setTimeout(() => setCopied(null), 2000)
+  }
+
+  const openQr = (code: string) => {
+    const link = getLineLink(code)
+    if (!link) return
+    setQrTarget({ code, url: link })
+  }
+
+  const downloadQr = (code: string, url: string) => {
+    const qrUrl = getQrUrl(url)
+    const a = document.createElement('a')
+    a.href = qrUrl
+    a.download = `qr-${code}.png`
+    a.target = '_blank'
+    a.click()
   }
 
   const openCreate = () => {
@@ -109,9 +127,7 @@ export default function AffiliatesPage() {
     setSaving(true)
     try {
       const body = { name: formName.trim(), code: formCode.trim() }
-      const url = editingId
-        ? `/api/affiliates/${editingId}`
-        : `/api/affiliates`
+      const url = editingId ? `/api/affiliates/${editingId}` : `/api/affiliates`
       const method = editingId ? 'PUT' : 'POST'
       await fetchApi<unknown>(url, {
         method,
@@ -200,6 +216,38 @@ export default function AffiliatesPage() {
           </div>
         )}
 
+        {qrTarget && (
+          <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" onClick={() => setQrTarget(null)}>
+            <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-xs mx-4" onClick={(e) => e.stopPropagation()}>
+              <h2 className="text-base font-bold text-center mb-4">QRコード</h2>
+              <div className="flex justify-center mb-4">
+                <img
+                  src={getQrUrl(qrTarget.url)}
+                  alt="QRコード"
+                  width={240}
+                  height={240}
+                  className="rounded-lg border border-gray-200"
+                />
+              </div>
+              <p className="text-xs text-gray-500 text-center mb-4 break-all">{qrTarget.url}</p>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setQrTarget(null)}
+                  className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm"
+                >
+                  閉じる
+                </button>
+                <button
+                  onClick={() => downloadQr(qrTarget.code, qrTarget.url)}
+                  className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg text-sm font-medium"
+                >
+                  ダウンロード
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
         {loading ? (
           <div className="text-center py-12 text-gray-400">読み込み中...</div>
         ) : affiliates.length === 0 ? (
@@ -219,7 +267,7 @@ export default function AffiliatesPage() {
                         <span className="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded font-mono">{aff.code}</span>
                       </div>
                       {link ? (
-                        <div className="flex items-center gap-2 mt-2">
+                        <div className="flex items-center gap-2 mt-2 flex-wrap">
                           <span className="text-xs text-gray-500 truncate max-w-xs">{link}</span>
                           <button
                             onClick={() => copyLink(aff.code)}
@@ -227,16 +275,28 @@ export default function AffiliatesPage() {
                           >
                             {copied === aff.code ? 'コピー済み ✓' : 'コピー'}
                           </button>
+                          <button
+                            onClick={() => openQr(aff.code)}
+                            className="text-xs bg-purple-50 text-purple-600 hover:bg-purple-100 px-2 py-1 rounded"
+                          >
+                            QRコード
+                          </button>
                         </div>
                       ) : (
                         <p className="text-xs text-gray-400 mt-1">LINEアカウントを設定するとリンクが表示されます</p>
                       )}
                     </div>
                     <div className="flex gap-2 ml-4">
-                      <button onClick={() => openEdit(aff)} className="text-sm text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50">
+                      <button
+                        onClick={() => openEdit(aff)}
+                        className="text-sm text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50"
+                      >
                         編集
                       </button>
-                      <button onClick={() => handleDelete(aff.id, aff.name)} className="text-sm text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50">
+                      <button
+                        onClick={() => handleDelete(aff.id, aff.name)}
+                        className="text-sm text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50"
+                      >
                         削除
                       </button>
                     </div>
