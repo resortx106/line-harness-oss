@@ -1,7 +1,16 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { fetchApi } from '@/lib/api'
+async function apiFetch(url: string, options?: RequestInit): Promise<Response> {
+  return fetch(url, {
+    ...options,
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options?.headers || {}),
+    },
+  })
+}
 import Header from '@/components/layout/header'
 import { useAccount } from '@/contexts/account-context'
 
@@ -54,7 +63,7 @@ export default function FormSubmissionsPage() {
     setError('')
     try {
       const params = selectedAccountId ? `?accountId=${selectedAccountId}` : ''
-      const res = await fetchApi(`${WORKER_BASE}/api/forms${params}`)
+      const res = await apiFetch(`${WORKER_BASE}/api/forms${params}`)
       if (res.ok) {
         const data = await res.json()
         setForms(Array.isArray(data) ? data : (data.items || data.forms || []))
@@ -72,7 +81,7 @@ export default function FormSubmissionsPage() {
     setSubmissionsLoading(true)
     try {
       const params = selectedAccountId ? `?accountId=${selectedAccountId}` : ''
-      const res = await fetchApi(`${WORKER_BASE}/api/forms/${formId}/submissions${params}`)
+      const res = await apiFetch(`${WORKER_BASE}/api/forms/${formId}/submissions${params}`)
       if (res.ok) {
         const data = await res.json()
         setSubmissions(Array.isArray(data) ? data : (data.items || data.submissions || []))
@@ -128,7 +137,7 @@ export default function FormSubmissionsPage() {
         })),
       }
       const params = selectedAccountId ? `?accountId=${selectedAccountId}` : ''
-      const res = await fetchApi(`${WORKER_BASE}/api/forms${params}`, {
+      const res = await apiFetch(`${WORKER_BASE}/api/forms${params}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -149,7 +158,7 @@ export default function FormSubmissionsPage() {
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`「${name}」を削除しますか？`)) return
     try {
-      const res = await fetchApi(`${WORKER_BASE}/api/forms/${id}`, { method: 'DELETE' })
+      const res = await apiFetch(`${WORKER_BASE}/api/forms/${id}`, { method: 'DELETE' })
       if (res.ok) {
         await loadForms()
         if (selectedForm?.id === id) setView('list')
