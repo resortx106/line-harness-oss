@@ -5,8 +5,6 @@ import { fetchApi } from '@/lib/api'
 import Header from '@/components/layout/header'
 import { useAccount } from '@/contexts/account-context'
 
-const WORKER_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787'
-
 interface FormField {
   id: string
   label: string
@@ -53,7 +51,7 @@ export default function FormSubmissionsPage() {
     setError('')
     try {
       const params = selectedAccountId ? `?accountId=${selectedAccountId}` : ''
-      const data = await fetchApi<Form[] | { items: Form[] } | { forms: Form[] } | { success: boolean; data: Form[] }>(`${WORKER_BASE}/api/forms${params}`)
+      const data = await fetchApi<Form[] | { items: Form[] } | { forms: Form[] } | { success: boolean; data: Form[] }>(`/api/forms${params}`)
       if (Array.isArray(data)) {
         setForms(data)
       } else if ('items' in data && Array.isArray(data.items)) {
@@ -76,7 +74,7 @@ export default function FormSubmissionsPage() {
     setSubmissionsLoading(true)
     try {
       const params = selectedAccountId ? `?accountId=${selectedAccountId}` : ''
-      const data = await fetchApi<Submission[] | { items: Submission[] } | { submissions: Submission[] }>(`${WORKER_BASE}/api/forms/${formId}/submissions${params}`)
+      const data = await fetchApi<Submission[] | { items: Submission[] } | { submissions: Submission[] }>(`/api/forms/${formId}/submissions${params}`)
       if (Array.isArray(data)) {
         setSubmissions(data)
       } else if ('items' in data && Array.isArray(data.items)) {
@@ -136,7 +134,7 @@ export default function FormSubmissionsPage() {
         })),
       }
       const params = selectedAccountId ? `?accountId=${selectedAccountId}` : ''
-      await fetchApi<unknown>(`${WORKER_BASE}/api/forms${params}`, {
+      await fetchApi<unknown>(`/api/forms${params}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
@@ -153,7 +151,7 @@ export default function FormSubmissionsPage() {
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`「${name}」を削除しますか？`)) return
     try {
-      await fetchApi<unknown>(`${WORKER_BASE}/api/forms/${id}`, { method: 'DELETE' })
+      await fetchApi<unknown>(`/api/forms/${id}`, { method: 'DELETE' })
       await loadForms()
       if (selectedForm?.id === id) setView('list')
     } catch {
