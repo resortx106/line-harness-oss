@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { fetchApi } from '@/lib/api'
 import { useAccount } from '@/contexts/account-context'
 
 const WORKER_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787'
@@ -19,6 +18,17 @@ interface LineAccount {
   id: string
   channelId: string
   name: string
+}
+
+async function apiFetch(url: string, options?: RequestInit): Promise<Response> {
+  return fetch(url, {
+    ...options,
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(options?.headers || {}),
+    },
+  })
 }
 
 export default function AffiliatesPage() {
@@ -39,9 +49,9 @@ export default function AffiliatesPage() {
     setError('')
     try {
       const params = selectedAccountId ? `?accountId=${selectedAccountId}` : ''
-      const res = await fetchApi(`${WORKER_BASE}/api/affiliates${params}`)
+      const res = await apiFetch(`${WORKER_BASE}/api/affiliates${params}`)
       if (res.ok) {
-        const data = await res.json()
+        const data = await res.json() as Affiliate[] | { items: Affiliate[] }
         setAffiliates(Array.isArray(data) ? data : (data.items || []))
       } else {
         setError('流入経路の読み込みに失敗しました')
@@ -56,9 +66,9 @@ export default function AffiliatesPage() {
   const loadLineAccount = useCallback(async () => {
     try {
       const params = selectedAccountId ? `?accountId=${selectedAccountId}` : ''
-      const res = await fetchApi(`${WORKER_BASE}/api/line-accounts${params}`)
+      const res = await apiFetch(`${WORKER_BASE}/api/line-accounts${params}`)
       if (res.ok) {
-        const data = await res.json()
+        const data = await res.json() as LineAccount[] | { items: LineAccount[] }
         const accounts = Array.isArray(data) ? data : (data.items || [])
         if (accounts.length > 0) setLineAccount(accounts[0])
       }
@@ -115,9 +125,8 @@ export default function AffiliatesPage() {
         ? `${WORKER_BASE}/api/affiliates/${editingId}`
         : `${WORKER_BASE}/api/affiliates`
       const method = editingId ? 'PUT' : 'POST'
-      const res = await fetchApi(url, {
+      const res = await apiFetch(url, {
         method,
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
       if (res.ok) {
@@ -136,7 +145,7 @@ export default function AffiliatesPage() {
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`「${name}」を削除しますか？`)) return
     try {
-      const res = await fetchApi(`${WORKER_BASE}/api/affiliates/${id}`, { method: 'DELETE' })
+      const res = await apiFetch(`${WORKER_BASE}/api/affiliates/${id}`, { method: 'DELETE' })
       if (res.ok) {
         await loadAffiliates()
       } else {
@@ -167,7 +176,6 @@ export default function AffiliatesPage() {
           <div className="bg-red-50 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">{error}</div>
         )}
 
-        {/* フォームモーダル */}
         {showForm && (
           <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={closeForm}>
             <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
@@ -214,7 +222,6 @@ export default function AffiliatesPage() {
           </div>
         )}
 
-        {/* 一覧 */}
         {loading ? (
           <div className="text-center py-12 text-gray-400">読み込み中...</div>
         ) : affiliates.length === 0 ? (
