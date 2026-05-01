@@ -1,210 +1,273 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import Header from '@/components/layout/header'
-
 import { fetchApi } from '@/lib/api'
 import { useAccount } from '@/contexts/account-context'
 
 const WORKER_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787'
 
-interface RefRoute {
-  refCode: string
-  name: string
-  friendCount: number
-  clickCount: number
-  latestAt: string | null
-}
-
-interface RefSummaryData {
-  routes: RefRoute[]
-  totalFriends: number
-  friendsWithRef: number
-  friendsWithoutRef: number
-}
-
-interface RefFriend {
+interface Affiliate {
   id: string
-  displayName: string
-  trackedAt: string | null
-}
-
-interface RefDetailData {
-  refCode: string
   name: string
-  friends: RefFriend[]
+  code: string
+  commissionRate: number
+  isActive: boolean
+  createdAt: string
 }
 
-export default function AttributionPage() {
-  const { selectedAccountId } = useAccount()
-  const [summary, setSummary] = useState<RefSummaryData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [selectedRef, setSelectedRef] = useState<string | null>(null)
-  const [detail, setDetail] = useState<RefDetailData | null>(null)
-  const [detailLoading, setDetailLoading] = useState(false)
-  const [copiedCode, setCopiedCode] = useState<string | null>(null)
+interface LineAccount {
+  id: string
+  channelId: string
+  name: string
+}
 
-  const loadSummary = useCallback(async () => {
+export default function AffiliatesPage() {
+  const { selectedAccountId } = useAccount()
+  const [affiliates, setAffiliates] = useState<Affiliate[]>([])
+  const [lineAccount, setLineAccount] = useState<LineAccount | null>(null)
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState('')
+  const [showForm, setShowForm] = useState(false)
+  const [editingId, setEditingId] = useState<string | null>(null)
+  const [formName, setFormName] = useState('')
+  const [formCode, setFormCode] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [copied, setCopied] = useState<string | null>(null)
+
+  const loadAffiliates = useCallback(async () => {
     setLoading(true)
+    setError('')
     try {
-      const query = selectedAccountId ? `?lineAccountId=${selectedAccountId}` : ''
-      const res = await fetchApi<{ success: boolean; data: RefSummaryData }>(`/api/analytics/ref-summary${query}`)
-      setSummary(res.data)
+      const params = selectedAccountId ? `?accountId=${selectedAccountId}` : ''
+      const res = await fetchApi(`${WORKER_BASE}/api/affiliates${params}`)
+      if (res.ok) {
+        const data = await res.json()
+        setAffiliates(Array.isArray(data) ? data : (data.items || []))
+      } else {
+        setError('流入経路の読み込みに失敗しました')
+      }
     } catch {
-      // silent
+      setError('流入経路の読み込みに失敗しました')
+    } finally {
+      setLoading(false)
     }
-    setLoading(false)
+  }, [selectedAccountId])
+
+  const loadLineAccount = useCallback(async () => {
+    try {
+      const params = selectedAccountId ? `?accountId=${selectedAccountId}` : ''
+      const res = await fetchApi(`${WORKER_BASE}/api/line-accounts${params}`)
+      if (res.ok) {
+        const data = await res.json()
+        const accounts = Array.isArray(data) ? data : (data.items || [])
+        if (accounts.length > 0) setLineAccount(accounts[0])
+      }
+    } catch {
+      // ignore
+    }
   }, [selectedAccountId])
 
   useEffect(() => {
-    loadSummary()
-    // Refresh when tab becomes visible
-    const handleVisibility = () => { if (document.visibilityState === 'visible') loadSummary() }
-    document.addEventListener('visibilitychange', handleVisibility)
-    return () => document.removeEventListener('visibilitychange', handleVisibility)
-  }, [loadSummary])
+    loadAffiliates()
+    loadLineAccount()
+  }, [loadAffiliates, loadLineAccount])
 
-  const handleRowClick = async (refCode: string) => {
-    if (selectedRef === refCode) {
-      setSelectedRef(null)
-      setDetail(null)
-      return
-    }
-    setSelectedRef(refCode)
-    setDetailLoading(true)
+  const getLineLink = (code: string) => {
+    if (!lineAccount?.channelId) return null
+    return `https://line.me/R/ti/p/@${lineAccount.channelId}?ref=${code}`
+  }
+
+  const copyLink = async (code: string) => {
+    const link = getLineLink(code)
+    if (!link) return
+    await navigator.clipboard.writeText(link)
+    setCopied(code)
+    setTimeout(() => setCopied(null), 2000)
+  }
+
+  const openCreate = () => {
+    setEditingId(null)
+    setFormName('')
+    setFormCode('')
+    setShowForm(true)
+  }
+
+  const openEdit = (aff: Affiliate) => {
+    setEditingId(aff.id)
+    setFormName(aff.name)
+    setFormCode(aff.code)
+    setShowForm(true)
+  }
+
+  const closeForm = () => {
+    setShowForm(false)
+    setEditingId(null)
+    setFormName('')
+    setFormCode('')
+  }
+
+  const handleSave = async () => {
+    if (!formName.trim() || !formCode.trim()) return
+    setSaving(true)
     try {
-      const query = selectedAccountId ? `?lineAccountId=${selectedAccountId}` : ''
-      const res = await fetchApi<{ success: boolean; data: RefDetailData }>(`/api/analytics/ref/${encodeURIComponent(refCode)}${query}`)
-      setDetail(res.data)
+      const body = { name: formName.trim(), code: formCode.trim() }
+      const url = editingId
+        ? `${WORKER_BASE}/api/affiliates/${editingId}`
+        : `${WORKER_BASE}/api/affiliates`
+      const method = editingId ? 'PUT' : 'POST'
+      const res = await fetchApi(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body),
+      })
+      if (res.ok) {
+        closeForm()
+        await loadAffiliates()
+      } else {
+        alert('保存に失敗しました')
+      }
     } catch {
-      setDetail(null)
+      alert('保存に失敗しました')
+    } finally {
+      setSaving(false)
     }
-    setDetailLoading(false)
   }
 
-  const handleCopy = async (refCode: string) => {
-    const url = `${WORKER_BASE}/auth/line?ref=${encodeURIComponent(refCode)}`
-    await navigator.clipboard.writeText(url)
-    setCopiedCode(refCode)
-    setTimeout(() => setCopiedCode(null), 2000)
-  }
-
-  const formatDate = (iso: string | null) => {
-    if (!iso) return '—'
-    return new Date(iso).toLocaleDateString('ja-JP', { year: 'numeric', month: '2-digit', day: '2-digit' })
+  const handleDelete = async (id: string, name: string) => {
+    if (!confirm(`「${name}」を削除しますか？`)) return
+    try {
+      const res = await fetchApi(`${WORKER_BASE}/api/affiliates/${id}`, { method: 'DELETE' })
+      if (res.ok) {
+        await loadAffiliates()
+      } else {
+        alert('削除に失敗しました')
+      }
+    } catch {
+      alert('削除に失敗しました')
+    }
   }
 
   return (
-    <div>
-      <Header
-        title="流入経路分析"
-        description="ref コード別の友だち獲得・クリック実績"
-      />
+    <div className="min-h-screen bg-gray-50">
+      <div className="max-w-4xl mx-auto px-4 py-8">
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">流入経路管理</h1>
+            <p className="text-sm text-gray-500 mt-1">ref コード別の友だち獲得リンクを管理</p>
+          </div>
+          <button
+            onClick={openCreate}
+            className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+          >
+            ＋ 新規作成
+          </button>
+        </div>
 
-      {/* Summary cards */}
-      {summary && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-          <div className="bg-white rounded-xl p-5 border border-gray-100">
-            <p className="text-sm text-gray-500">総友だち数</p>
-            <p className="text-3xl font-bold text-gray-900 mt-1">{summary.totalFriends}</p>
-          </div>
-          <div className="bg-white rounded-xl p-5 border border-gray-100">
-            <p className="text-sm text-gray-500">ref 経由</p>
-            <p className="text-3xl font-bold text-green-600 mt-1">{summary.friendsWithRef}</p>
-          </div>
-          <div className="bg-white rounded-xl p-5 border border-gray-100">
-            <p className="text-sm text-gray-500">ref 不明</p>
-            <p className="text-3xl font-bold text-gray-400 mt-1">{summary.friendsWithoutRef}</p>
-          </div>
-          <div className="bg-white rounded-xl p-5 border border-gray-100">
-            <p className="text-sm text-gray-500">経路数</p>
-            <p className="text-3xl font-bold text-blue-600 mt-1">{summary.routes.length}</p>
-          </div>
-        </div>
-      )}
+        {error && (
+          <div className="bg-red-50 text-red-700 px-4 py-3 rounded-lg mb-4 text-sm">{error}</div>
+        )}
 
-      {/* Table */}
-      {loading ? (
-        <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-400">
-          読み込み中...
-        </div>
-      ) : !summary || summary.routes.length === 0 ? (
-        <div className="bg-white rounded-lg border border-gray-200 p-8 text-center text-gray-400">
-          流入経路がまだ登録されていません
-        </div>
-      ) : (
-        <div className="bg-white rounded-lg border border-gray-200 overflow-x-auto">
-          <table className="w-full min-w-[720px]">
-            <thead className="bg-gray-50 border-b border-gray-200">
-              <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">ref コード</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">経路名</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">友だち数</th>
-                <th className="px-4 py-3 text-right text-xs font-medium text-gray-500 uppercase">クリック数</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">最新追加日</th>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase">URL</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-gray-200">
-              {summary.routes.map((route) => {
-                const authUrl = `${WORKER_BASE}/auth/line?ref=${encodeURIComponent(route.refCode)}`
-                const isExpanded = selectedRef === route.refCode
-                return (
-                  <>
-                    <tr
-                      key={route.refCode}
-                      className="hover:bg-gray-50 cursor-pointer"
-                      onClick={() => handleRowClick(route.refCode)}
-                    >
-                      <td className="px-4 py-3 text-sm font-mono text-blue-600">{route.refCode}</td>
-                      <td className="px-4 py-3 text-sm font-medium text-gray-900">{route.name}</td>
-                      <td className="px-4 py-3 text-sm text-right font-semibold text-gray-900">{route.friendCount}</td>
-                      <td className="px-4 py-3 text-sm text-right text-gray-600">{route.clickCount}</td>
-                      <td className="px-4 py-3 text-sm text-gray-500">{formatDate(route.latestAt)}</td>
-                      <td className="px-4 py-3 text-sm" onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center gap-2">
-                          <span className="text-xs text-gray-400 truncate max-w-[180px]">{authUrl}</span>
+        {/* フォームモーダル */}
+        {showForm && (
+          <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center" onClick={closeForm}>
+            <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md mx-4" onClick={(e) => e.stopPropagation()}>
+              <h2 className="text-lg font-bold mb-4">{editingId ? '流入経路を編集' : '新しい流入経路を作成'}</h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">経路名</label>
+                  <input
+                    type="text"
+                    value={formName}
+                    onChange={(e) => setFormName(e.target.value)}
+                    placeholder="例: Instagram広告"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-1">ref コード</label>
+                  <input
+                    type="text"
+                    value={formCode}
+                    onChange={(e) => setFormCode(e.target.value.replace(/[^a-zA-Z0-9_-]/g, ''))}
+                    placeholder="例: instagram"
+                    className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-400 font-mono"
+                  />
+                  <p className="text-xs text-gray-400 mt-1">半角英数字・ハイフン・アンダーバーのみ</p>
+                </div>
+              </div>
+              <div className="flex gap-2 mt-6">
+                <button
+                  onClick={closeForm}
+                  className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-50 transition-colors"
+                >
+                  キャンセル
+                </button>
+                <button
+                  onClick={handleSave}
+                  disabled={saving || !formName.trim() || !formCode.trim()}
+                  className="flex-1 bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white py-2 rounded-lg text-sm font-medium transition-colors"
+                >
+                  {saving ? '保存中...' : '保存'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* 一覧 */}
+        {loading ? (
+          <div className="text-center py-12 text-gray-400">読み込み中...</div>
+        ) : affiliates.length === 0 ? (
+          <div className="bg-white rounded-xl border border-gray-200 py-12 text-center text-gray-400">
+            流入経路がまだ登録されていません
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {affiliates.map((aff) => {
+              const link = getLineLink(aff.code)
+              return (
+                <div key={aff.id} className="bg-white rounded-xl border border-gray-200 p-4">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-semibold text-gray-900">{aff.name}</span>
+                        <span className="bg-gray-100 text-gray-600 text-xs px-2 py-0.5 rounded font-mono">{aff.code}</span>
+                      </div>
+                      {link ? (
+                        <div className="flex items-center gap-2 mt-2">
+                          <span className="text-xs text-gray-500 truncate max-w-xs">{link}</span>
                           <button
-                            onClick={() => handleCopy(route.refCode)}
-                            className="text-xs text-blue-500 hover:text-blue-700 shrink-0"
+                            onClick={() => copyLink(aff.code)}
+                            className="text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 px-2 py-1 rounded transition-colors whitespace-nowrap"
                           >
-                            {copiedCode === route.refCode ? 'コピー済' : 'コピー'}
+                            {copied === aff.code ? 'コピー済み ✓' : 'コピー'}
                           </button>
                         </div>
-                      </td>
-                    </tr>
-                    {isExpanded && (
-                      <tr key={`${route.refCode}-detail`}>
-                        <td colSpan={6} className="px-6 py-4 bg-gray-50">
-                          {detailLoading ? (
-                            <p className="text-sm text-gray-400">読み込み中...</p>
-                          ) : detail && detail.friends.length > 0 ? (
-                            <div>
-                              <p className="text-xs font-semibold text-gray-500 uppercase mb-3">
-                                このルートから追加した友だち ({detail.friends.length}人)
-                              </p>
-                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-                                {detail.friends.map((f) => (
-                                  <div key={f.id} className="flex items-center justify-between bg-white rounded-lg px-3 py-2 border border-gray-100">
-                                    <span className="text-sm text-gray-800 font-medium truncate">{f.displayName}</span>
-                                    <span className="text-xs text-gray-400 ml-2 shrink-0">{formatDate(f.trackedAt)}</span>
-                                  </div>
-                                ))}
-                              </div>
-                            </div>
-                          ) : (
-                            <p className="text-sm text-gray-400">このルートから追加した友だちはまだいません</p>
-                          )}
-                        </td>
-                      </tr>
-                    )}
-                  </>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
-      )}
+                      ) : (
+                        <p className="text-xs text-gray-400 mt-1">LINEアカウントを設定するとリンクが表示されます</p>
+                      )}
+                    </div>
+                    <div className="flex gap-2 ml-4">
+                      <button
+                        onClick={() => openEdit(aff)}
+                        className="text-sm text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50 transition-colors"
+                      >
+                        編集
+                      </button>
+                      <button
+                        onClick={() => handleDelete(aff.id, aff.name)}
+                        className="text-sm text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 transition-colors"
+                      >
+                        削除
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
     </div>
   )
 }
