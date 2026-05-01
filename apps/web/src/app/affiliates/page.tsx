@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
+import { fetchApi } from '@/lib/api'
 import { useAccount } from '@/contexts/account-context'
 
 const WORKER_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8787'
@@ -18,17 +19,6 @@ interface LineAccount {
   id: string
   channelId: string
   name: string
-}
-
-async function apiFetch(url: string, options?: RequestInit): Promise<Response> {
-  return fetch(url, {
-    ...options,
-    credentials: 'include',
-    headers: {
-      'Content-Type': 'application/json',
-      ...(options?.headers || {}),
-    },
-  })
 }
 
 export default function AffiliatesPage() {
@@ -49,12 +39,15 @@ export default function AffiliatesPage() {
     setError('')
     try {
       const params = selectedAccountId ? `?accountId=${selectedAccountId}` : ''
-      const res = await apiFetch(`${WORKER_BASE}/api/affiliates${params}`)
-      if (res.ok) {
-        const data = await res.json() as Affiliate[] | { items: Affiliate[] }
-        setAffiliates(Array.isArray(data) ? data : (data.items || []))
+      const data = await fetchApi<Affiliate[] | { items: Affiliate[] } | { success: boolean; data: Affiliate[] }>(`${WORKER_BASE}/api/affiliates${params}`)
+      if (Array.isArray(data)) {
+        setAffiliates(data)
+      } else if ('items' in data && Array.isArray(data.items)) {
+        setAffiliates(data.items)
+      } else if ('data' in data && Array.isArray(data.data)) {
+        setAffiliates(data.data)
       } else {
-        setError('流入経路の読み込みに失敗しました')
+        setAffiliates([])
       }
     } catch {
       setError('流入経路の読み込みに失敗しました')
@@ -66,12 +59,9 @@ export default function AffiliatesPage() {
   const loadLineAccount = useCallback(async () => {
     try {
       const params = selectedAccountId ? `?accountId=${selectedAccountId}` : ''
-      const res = await apiFetch(`${WORKER_BASE}/api/line-accounts${params}`)
-      if (res.ok) {
-        const data = await res.json() as LineAccount[] | { items: LineAccount[] }
-        const accounts = Array.isArray(data) ? data : (data.items || [])
-        if (accounts.length > 0) setLineAccount(accounts[0])
-      }
+      const data = await fetchApi<LineAccount[] | { items: LineAccount[] }>(`${WORKER_BASE}/api/line-accounts${params}`)
+      const accounts = Array.isArray(data) ? data : (data.items || [])
+      if (accounts.length > 0) setLineAccount(accounts[0])
     } catch {
       // ignore
     }
@@ -125,16 +115,13 @@ export default function AffiliatesPage() {
         ? `${WORKER_BASE}/api/affiliates/${editingId}`
         : `${WORKER_BASE}/api/affiliates`
       const method = editingId ? 'PUT' : 'POST'
-      const res = await apiFetch(url, {
+      await fetchApi<unknown>(url, {
         method,
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
-      if (res.ok) {
-        closeForm()
-        await loadAffiliates()
-      } else {
-        alert('保存に失敗しました')
-      }
+      closeForm()
+      await loadAffiliates()
     } catch {
       alert('保存に失敗しました')
     } finally {
@@ -145,12 +132,8 @@ export default function AffiliatesPage() {
   const handleDelete = async (id: string, name: string) => {
     if (!confirm(`「${name}」を削除しますか？`)) return
     try {
-      const res = await apiFetch(`${WORKER_BASE}/api/affiliates/${id}`, { method: 'DELETE' })
-      if (res.ok) {
-        await loadAffiliates()
-      } else {
-        alert('削除に失敗しました')
-      }
+      await fetchApi<unknown>(`${WORKER_BASE}/api/affiliates/${id}`, { method: 'DELETE' })
+      await loadAffiliates()
     } catch {
       alert('削除に失敗しました')
     }
@@ -204,16 +187,13 @@ export default function AffiliatesPage() {
                 </div>
               </div>
               <div className="flex gap-2 mt-6">
-                <button
-                  onClick={closeForm}
-                  className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-50 transition-colors"
-                >
+                <button onClick={closeForm} className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm hover:bg-gray-50">
                   キャンセル
                 </button>
                 <button
                   onClick={handleSave}
                   disabled={saving || !formName.trim() || !formCode.trim()}
-                  className="flex-1 bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white py-2 rounded-lg text-sm font-medium transition-colors"
+                  className="flex-1 bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white py-2 rounded-lg text-sm font-medium"
                 >
                   {saving ? '保存中...' : '保存'}
                 </button>
@@ -245,7 +225,7 @@ export default function AffiliatesPage() {
                           <span className="text-xs text-gray-500 truncate max-w-xs">{link}</span>
                           <button
                             onClick={() => copyLink(aff.code)}
-                            className="text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 px-2 py-1 rounded transition-colors whitespace-nowrap"
+                            className="text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 px-2 py-1 rounded"
                           >
                             {copied === aff.code ? 'コピー済み ✓' : 'コピー'}
                           </button>
@@ -255,16 +235,10 @@ export default function AffiliatesPage() {
                       )}
                     </div>
                     <div className="flex gap-2 ml-4">
-                      <button
-                        onClick={() => openEdit(aff)}
-                        className="text-sm text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50 transition-colors"
-                      >
+                      <button onClick={() => openEdit(aff)} className="text-sm text-blue-600 hover:text-blue-800 px-2 py-1 rounded hover:bg-blue-50">
                         編集
                       </button>
-                      <button
-                        onClick={() => handleDelete(aff.id, aff.name)}
-                        className="text-sm text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50 transition-colors"
-                      >
+                      <button onClick={() => handleDelete(aff.id, aff.name)} className="text-sm text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50">
                         削除
                       </button>
                     </div>
