@@ -111,7 +111,7 @@ export default function AffiliatesPage() {
       const body = { name: formName.trim(), code: formCode.trim() }
       const url = editingId
         ? `/api/affiliates/${editingId}`
-        : `${WORKER_BASE}/api/affiliates`
+        : `/api/affiliates`
       const method = editingId ? 'PUT' : 'POST'
       await fetchApi<unknown>(url, {
         method,
