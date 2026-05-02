@@ -1,7 +1,8 @@
 import FriendDetail from './client'
 
 export function generateStaticParams() {
-  return []
+  // Return a placeholder - actual IDs are loaded client-side
+  return [{ friendId: 'placeholder' }]
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
