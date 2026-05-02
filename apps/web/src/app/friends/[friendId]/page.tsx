@@ -1,13 +1,12 @@
+'use client'
+import { useParams } from 'next/navigation'
 import FriendDetail from './client'
 
-// Required for Next.js static export with dynamic routes
 export function generateStaticParams() {
   return []
 }
 
-type Params = { friendId: string }
-
-export default async function FriendDetailPage({ params }: { params: Promise<Params> }) {
-  const { friendId } = await params
+export default function FriendDetailPage() {
+  const { friendId } = useParams<{ friendId: string }>()
   return <FriendDetail friendId={friendId} />
 }
