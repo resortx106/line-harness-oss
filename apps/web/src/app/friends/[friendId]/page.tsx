@@ -5,6 +5,9 @@ export function generateStaticParams() {
   return []
 }
 
-export default function FriendDetailPage({ params }: { params: { friendId: string } }) {
-  return <FriendDetail friendId={params.friendId} />
+type Params = { friendId: string }
+
+export default async function FriendDetailPage({ params }: { params: Promise<Params> }) {
+  const { friendId } = await params
+  return <FriendDetail friendId={friendId} />
 }
