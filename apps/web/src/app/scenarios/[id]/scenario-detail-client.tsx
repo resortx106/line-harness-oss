@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams } from 'next/navigation'
 import Link from 'next/link'
+import type { MessageType } from '@line-crm/shared'
 import { api } from '@/lib/api'
 import Header from '@/components/layout/header'
 import CcPromptButton from '@/components/cc-prompt-button'
@@ -50,7 +51,7 @@ export default function ScenarioDetailClient() {
     if (!stepForm.messageContent.trim()) { setStepError('\u30e1\u30c3\u30bb\u30fc\u30b8\u5185\u5bb9\u3092\u5165\u529b\u3057\u3066\u304f\u3060\u3055\u3044'); return }
     setStepSaving(true); setStepError('')
     try {
-      const res = await api.scenarios.addStep(id, { stepOrder: stepForm.stepOrder, delayMinutes: stepForm.delayMinutes, messageType: stepForm.messageType, messageContent: stepForm.messageContent })
+      const res = await api.scenarios.addStep(id, { stepOrder: stepForm.stepOrder, delayMinutes: stepForm.delayMinutes, messageType: stepForm.messageType as MessageType, messageContent: stepForm.messageContent })
       if (res.success) { setShowAddStep(false); setStepForm({ stepOrder: (scenario?.steps.length || 0) + 2, delayMinutes: 0, messageType: 'text', messageContent: '' }); loadScenario() }
       else { setStepError(res.error || '\u5931\u6557\u3057\u307e\u3057\u305f') }
     } catch { setStepError('\u30b9\u30c6\u30c3\u30d7\u306e\u8ffd\u52a0\u306b\u5931\u6557\u3057\u307e\u3057\u305f') }
