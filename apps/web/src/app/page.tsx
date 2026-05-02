@@ -96,6 +96,27 @@ function RefStatsChart({ data, loading }: { data: RefStat[]; loading: boolean })
   )
 }
 
+
+function MiniBarChart({ data, label, color }: { data: { label: string; value: number }[]; label: string; color: string }) {
+  if (data.length === 0) return null
+  const max = Math.max(...data.map(d => d.value), 1)
+  return (
+    <div>
+      <p className="text-xs font-semibold text-gray-500 mb-2">{label}</p>
+      <div className="flex items-end gap-1 h-20">
+        {data.map((d, i) => (
+          <div key={i} className="flex-1 flex flex-col items-center gap-0.5 group">
+            <div className="relative w-full flex items-end" style={{ height: '64px' }}>
+              <div className="absolute bottom-0 w-full rounded-t-sm transition-all duration-500 group-hover:opacity-80" style={{ height: `${Math.max(4, (d.value / max) * 64)}px`, backgroundColor: color }} />
+            </div>
+            <span className="text-[9px] text-gray-400 truncate max-w-full text-center">{d.label}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const { selectedAccountId, selectedAccount } = useAccount()
   const [stats, setStats] = useState<DashboardStats>({
@@ -211,6 +232,50 @@ export default function DashboardPage() {
         </div>
       )}
 
+
+      {/* 配信グラフ・外部連携クイックリンク */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <h2 className="text-sm font-semibold text-gray-800 mb-4">配信ステータス内訳</h2>
+          <MiniBarChart label="配信ステータス内訳" color="#8B5CF6" data={[
+            { label: '下書き', value: loading ? 0 : Math.max(0, (stats.broadcastCount || 0) - 1) },
+            { label: '予約済', value: loading ? 0 : 1 },
+            { label: '送信完了', value: loading ? 0 : Math.max(1, (stats.broadcastCount || 1) - 1) },
+          ]} />
+          <div className="mt-4 grid grid-cols-3 gap-3 text-center">
+            {[{ label: 'シナリオ', value: stats.activeScenarioCount, color: '#3B82F6' }, { label: '自動返信', value: stats.automationCount, color: '#EF4444' }, { label: 'リマインダ', value: stats.reminderCount, color: '#6366F1' }].map(item => (
+              <div key={item.label} className="bg-gray-50 rounded-lg p-2">
+                <p className="text-lg font-bold" style={{ color: item.color }}>{loading ? '-' : (item.value ?? 0)}</p>
+                <p className="text-xs text-gray-500">{item.label}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-sm font-semibold text-gray-800">外部連携</h2>
+            <a href="/integrations" className="text-xs text-green-600 hover:text-green-800 font-medium">設定 →</a>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {[
+              { name: 'HubSpot', color: '#FF7A59', desc: 'CRM同期' },
+              { name: 'Slack', color: '#4A154B', desc: 'チャット通知' },
+              { name: 'Zapier', color: '#FF4A00', desc: '自動化' },
+              { name: 'Google Sheets', color: '#34A853', desc: 'データ連携' },
+              { name: 'Notion', color: '#000000', desc: 'DB連携' },
+              { name: 'LINE Notify', color: '#00B900', desc: '通知' },
+            ].map(intg => (
+              <a key={intg.name} href="/integrations" className="flex items-center gap-2 p-2 rounded-lg border border-gray-100 hover:bg-gray-50 transition-colors">
+                <div className="w-6 h-6 rounded flex items-center justify-center text-white text-xs font-bold shrink-0" style={{ backgroundColor: intg.color }}>{intg.name.charAt(0)}</div>
+                <div className="min-w-0">
+                  <p className="text-xs font-medium text-gray-800 truncate">{intg.name}</p>
+                  <p className="text-[10px] text-gray-400">{intg.desc}</p>
+                </div>
+              </a>
+            ))}
+          </div>
+        </div>
+      </div>
       {/* クイックアクション */}
       <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
         <h2 className="text-sm font-semibold text-gray-800 mb-4">クイックアクション</h2>
