@@ -2,32 +2,35 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import type { Tag } from '@line-crm/shared'
-import type { FriendWithTags } from '@/lib/api'
 import { api } from '@/lib/api'
-import TagBadge from './tag-badge'
+import type { FriendWithTags } from '@/lib/api'
 
 interface FriendTableProps {
   friends: FriendWithTags[]
-  allTags: Tag[]
+  tags: Tag[]
   onRefresh: () => void
+  // Search/filter state (controlled from parent)
+  searchQuery: string
+  onSearchChange: (v: string) => void
+  filterTagId: string
+  onFilterTagChange: (v: string) => void
 }
 
-export default function FriendTable({ friends, allTags, onRefresh }: FriendTableProps) {
+export default function FriendTable({
+  friends,
+  tags,
+  onRefresh,
+  searchQuery,
+  onSearchChange,
+  filterTagId,
+  onFilterTagChange,
+}: FriendTableProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [addingTagForFriend, setAddingTagForFriend] = useState<string | null>(null)
-  const [selectedTagId, setSelectedTagId] = useState('')
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
-
-  // 一括操作用 state
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [bulkTagId, setBulkTagId] = useState('')
+  const [bulkAction, setBulkAction] = useState<'add' | 'remove'>('add')
   const [bulkLoading, setBulkLoading] = useState(false)
-  const [bulkError, setBulkError] = useState('')
-  const [bulkSuccess, setBulkSuccess] = useState('')
-
-  const allSelected = friends.length > 0 && selectedIds.size === friends.length
-  const someSelected = selectedIds.size > 0 && !allSelected
+  const [bulkMsg, setBulkMsg] = useState('')
 
   const toggleSelect = (id: string) => {
     setSelectedIds((prev) => {
@@ -39,276 +42,310 @@ export default function FriendTable({ friends, allTags, onRefresh }: FriendTable
   }
 
   const toggleSelectAll = () => {
-    if (allSelected) setSelectedIds(new Set())
-    else setSelectedIds(new Set(friends.map((f) => f.id)))
+    if (selectedIds.size === friends.length) {
+      setSelectedIds(new Set())
+    } else {
+      setSelectedIds(new Set(friends.map((f) => f.id)))
+    }
   }
 
-  const handleBulkAddTag = async () => {
+  const handleBulk = async () => {
     if (!bulkTagId || selectedIds.size === 0) return
     setBulkLoading(true)
-    setBulkError('')
-    setBulkSuccess('')
-    try {
-      await Promise.all(Array.from(selectedIds).map((id) => api.friends.addTag(id, bulkTagId)))
-      setBulkSuccess(`${selectedIds.size}件の友だちにタグを追加しました`)
-      setSelectedIds(new Set())
-      setBulkTagId('')
-      onRefresh()
-    } catch {
-      setBulkError('一括タグ追加に失敗しました')
-    } finally {
-      setBulkLoading(false)
+    setBulkMsg('')
+    let ok = 0
+    let fail = 0
+    for (const friendId of Array.from(selectedIds)) {
+      try {
+        if (bulkAction === 'add') {
+          await api.friends.addTag(friendId, bulkTagId)
+        } else {
+          await api.friends.removeTag(friendId, bulkTagId)
+        }
+        ok++
+      } catch {
+        fail++
+      }
     }
+    setBulkMsg(
+      bulkAction === 'add'
+        ? `${ok}件タグ追加完了${fail > 0 ? `（${fail}件失敗）` : ''}`
+        : `${ok}件タグ削除完了${fail > 0 ? `（${fail}件失敗）` : ''}`
+    )
+    setBulkLoading(false)
+    setSelectedIds(new Set())
+    setBulkTagId('')
+    onRefresh()
   }
 
-  const toggleExpand = (id: string) => {
-    setExpandedId(expandedId === id ? null : id)
-    setAddingTagForFriend(null)
-    setSelectedTagId('')
-    setError('')
-  }
-
-  const handleAddTag = async (friendId: string) => {
-    if (!selectedTagId) return
-    setLoading(true)
-    setError('')
-    try {
-      await api.friends.addTag(friendId, selectedTagId)
-      setAddingTagForFriend(null)
-      setSelectedTagId('')
-      onRefresh()
-    } catch {
-      setError('タグの追加に失敗しました')
-    } finally {
-      setLoading(false)
-    }
+  const handleAddTag = async (friendId: string, tagId: string) => {
+    await api.friends.addTag(friendId, tagId)
+    onRefresh()
   }
 
   const handleRemoveTag = async (friendId: string, tagId: string) => {
-    setLoading(true)
-    setError('')
-    try {
-      await api.friends.removeTag(friendId, tagId)
-      onRefresh()
-    } catch {
-      setError('タグの削除に失敗しました')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const formatDate = (iso: string) => {
-    return new Date(iso).toLocaleDateString('ja-JP', {
-      year: 'numeric', month: '2-digit', day: '2-digit',
-    })
-  }
-
-  if (friends.length === 0) {
-    return (
-      <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
-        <p className="text-gray-500">友だちが見つかりません</p>
-      </div>
-    )
+    await api.friends.removeTag(friendId, tagId)
+    onRefresh()
   }
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
-      {error && (
-        <div className="px-4 py-3 bg-red-50 border-b border-red-100 text-red-700 text-sm">{error}</div>
-      )}
+    <div>
+      {/* Search + Tag filter bar */}
+      <div className="mb-4 flex flex-col sm:flex-row gap-3">
+        <div className="relative flex-1">
+          <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0" />
+          </svg>
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder="表示名で検索..."
+            className="w-full pl-9 pr-3 py-2 border border-gray-300 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => onSearchChange('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+        <select
+          value={filterTagId}
+          onChange={(e) => onFilterTagChange(e.target.value)}
+          className="sm:w-48 border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+        >
+          <option value="">全タグ</option>
+          {tags.map((t) => (
+            <option key={t.id} value={t.id}>{t.name}</option>
+          ))}
+        </select>
+      </div>
 
-      {/* 一括操作バー */}
+      {/* Bulk action bar */}
       {selectedIds.size > 0 && (
-        <div className="px-4 py-3 bg-green-50 border-b border-green-200 flex flex-wrap items-center gap-3">
+        <div className="mb-4 flex flex-col sm:flex-row items-start sm:items-center gap-3 px-4 py-3 bg-green-50 border border-green-200 rounded-lg">
           <span className="text-sm font-medium text-green-800">{selectedIds.size}件選択中</span>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2 flex-1">
             <select
-              className="border border-gray-300 rounded-md px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-green-500 bg-white"
+              value={bulkAction}
+              onChange={(e) => setBulkAction(e.target.value as 'add' | 'remove')}
+              className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+            >
+              <option value="add">タグ追加</option>
+              <option value="remove">タグ削除</option>
+            </select>
+            <select
               value={bulkTagId}
               onChange={(e) => setBulkTagId(e.target.value)}
+              className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
             >
               <option value="">タグを選択...</option>
-              {allTags.map((tag) => (
-                <option key={tag.id} value={tag.id}>{tag.name}</option>
+              {tags.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
               ))}
             </select>
             <button
-              onClick={handleBulkAddTag}
+              onClick={handleBulk}
               disabled={!bulkTagId || bulkLoading}
-              className="px-3 py-1 text-xs font-medium text-white rounded-md disabled:opacity-50 transition-opacity"
-              style={{ backgroundColor: '#06C755' }}
+              className={`px-4 py-1.5 text-sm font-medium text-white rounded-lg disabled:opacity-50 ${bulkAction === 'add' ? '' : 'bg-red-500 hover:bg-red-600'}`}
+              style={bulkAction === 'add' ? { backgroundColor: '#06C755' } : undefined}
             >
-              {bulkLoading ? '追加中...' : '一括タグ追加'}
+              {bulkLoading ? '処理中...' : bulkAction === 'add' ? '一括タグ追加' : '一括タグ削除'}
+            </button>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="px-3 py-1.5 text-sm text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors"
+            >
+              選択解除
             </button>
           </div>
-          <button
-            onClick={() => setSelectedIds(new Set())}
-            className="text-xs text-gray-500 hover:text-gray-700"
-          >
-            選択解除
-          </button>
-          {bulkError && <span className="text-xs text-red-600">{bulkError}</span>}
-          {bulkSuccess && <span className="text-xs text-green-700">{bulkSuccess}</span>}
+          {bulkMsg && <span className="text-xs text-green-700 font-medium">{bulkMsg}</span>}
         </div>
       )}
 
-      <div className="overflow-x-auto">
-        <table className="w-full min-w-[640px]">
-          <thead>
-            <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="px-4 py-3 w-10">
-                <input
-                  type="checkbox"
-                  checked={allSelected}
-                  ref={(el) => { if (el) el.indeterminate = someSelected }}
-                  onChange={toggleSelectAll}
-                  className="rounded border-gray-300 text-green-600 focus:ring-green-500"
-                />
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                アイコン / 表示名
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                ステータス
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                タグ / 流入
-              </th>
-              <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
-                登録日
-              </th>
-              <th className="px-4 py-3" />
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-gray-100">
-            {friends.map((friend) => {
-              const isExpanded = expandedId === friend.id
-              const isAddingTag = addingTagForFriend === friend.id
-              const isSelected = selectedIds.has(friend.id)
-              const availableTags = allTags.filter(
-                (t) => !friend.tags.some((ft) => ft.id === t.id)
-              )
-              return (
-                <>
-                  <tr
-                    key={friend.id}
-                    className={`hover:bg-gray-50 cursor-pointer transition-colors ${isSelected ? 'bg-green-50' : ''}`}
-                    onClick={() => toggleExpand(friend.id)}
-                  >
-                    <td className="px-4 py-3 w-10" onClick={(e) => e.stopPropagation()}>
-                      <input
-                        type="checkbox"
-                        checked={isSelected}
-                        onChange={() => toggleSelect(friend.id)}
-                        className="rounded border-gray-300 text-green-600 focus:ring-green-500"
-                      />
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex items-center gap-3">
-                        {friend.pictureUrl ? (
-                          <img src={friend.pictureUrl} alt={friend.displayName} className="w-9 h-9 rounded-full object-cover bg-gray-100" />
-                        ) : (
-                          <div className="w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center text-gray-500 text-sm font-medium">
-                            {friend.displayName?.charAt(0) ?? '?'}
-                          </div>
-                        )}
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">{friend.displayName}</p>
-                          {friend.statusMessage && (
-                            <p className="text-xs text-gray-400 truncate max-w-[160px]">{friend.statusMessage}</p>
+      <div className="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full min-w-[640px]">
+            <thead>
+              <tr className="bg-gray-50 border-b border-gray-200">
+                <th className="px-4 py-3 w-10">
+                  <input
+                    type="checkbox"
+                    checked={friends.length > 0 && selectedIds.size === friends.length}
+                    onChange={toggleSelectAll}
+                    className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                  />
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  友だち
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  タグ
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  登録日
+                </th>
+                <th className="px-4 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                  操作
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {friends.map((friend) => {
+                const isSelected = selectedIds.has(friend.id)
+                const isExpanded = expandedId === friend.id
+                const friendTags = friend.tags || []
+                const availableTags = tags.filter((t) => !friendTags.find((ft) => ft.id === t.id))
+
+                return (
+                  <>
+                    <tr
+                      key={friend.id}
+                      className={`transition-colors ${isSelected ? 'bg-green-50' : 'hover:bg-gray-50'}`}
+                    >
+                      <td className="px-4 py-3">
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={() => toggleSelect(friend.id)}
+                          className="rounded border-gray-300 text-green-600 focus:ring-green-500"
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-3">
+                          {friend.pictureUrl ? (
+                            <img
+                              src={friend.pictureUrl}
+                              alt={friend.displayName || ''}
+                              className="w-9 h-9 rounded-full object-cover flex-shrink-0"
+                            />
+                          ) : (
+                            <div className="w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center flex-shrink-0">
+                              <span className="text-gray-500 text-sm font-medium">
+                                {(friend.displayName || '?').charAt(0)}
+                              </span>
+                            </div>
                           )}
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-4 py-3">
-                      {friend.isFollowing ? (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
-                          フォロー中
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">
-                          ブロック/退会
-                        </span>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        {(friend as unknown as { refCode?: string }).refCode && (
-                          <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-700">
-                            {(friend as unknown as { refCode: string }).refCode}
-                          </span>
-                        )}
-                        {friend.tags.length > 0 ? (
-                          friend.tags.map((tag) => <TagBadge key={tag.id} tag={tag} />)
-                        ) : !((friend as unknown as { refCode?: string }).refCode) ? (
-                          <span className="text-xs text-gray-400">なし</span>
-                        ) : null}
-                      </div>
-                    </td>
-                    <td className="px-4 py-3 text-sm text-gray-500">
-                      {formatDate(friend.createdAt)}
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <svg className={`w-4 h-4 text-gray-400 transition-transform inline-block ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                      </svg>
-                    </td>
-                  </tr>
-                  {isExpanded && (
-                    <tr key={`${friend.id}-detail`} className="bg-gray-50">
-                      <td colSpan={6} className="px-6 py-4">
-                        <div className="space-y-3">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-xs font-semibold text-gray-500 mb-1">LINE ユーザーID</p>
-                              <p className="text-xs text-gray-600 font-mono">{friend.lineUserId}</p>
-                            </div>
-                            <Link href={`/friends/${friend.id}`} onClick={(e) => e.stopPropagation()} className="text-xs bg-green-500 hover:bg-green-600 text-white px-3 py-1.5 rounded-lg font-medium transition-colors">
-                              詳細ページへ →
-                            </Link>
-                          </div>
                           <div>
-                            <p className="text-xs font-semibold text-gray-500 mb-2">タグ管理</p>
-                            <div className="flex flex-wrap gap-1.5 mb-2">
-                              {friend.tags.map((tag) => (
-                                <TagBadge key={tag.id} tag={tag} onRemove={() => handleRemoveTag(friend.id, tag.id)} />
-                              ))}
-                            </div>
-                            {isAddingTag ? (
-                              <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                                <select className="text-sm border border-gray-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-green-500" value={selectedTagId} onChange={(e) => setSelectedTagId(e.target.value)}>
-                                  <option value="">タグを選択...</option>
-                                  {availableTags.map((tag) => (
-                                    <option key={tag.id} value={tag.id}>{tag.name}</option>
-                                  ))}
-                                </select>
-                                <button onClick={() => handleAddTag(friend.id)} disabled={!selectedTagId || loading} className="px-3 py-1 text-xs font-medium rounded-md text-white disabled:opacity-50 transition-opacity" style={{ backgroundColor: '#06C755' }}>
-                                  追加
-                                </button>
-                                <button onClick={() => { setAddingTagForFriend(null); setSelectedTagId('') }} className="px-3 py-1 text-xs font-medium rounded-md text-gray-600 bg-gray-200 hover:bg-gray-300 transition-colors">
-                                  キャンセル
-                                </button>
-                              </div>
-                            ) : (
-                              availableTags.length > 0 && (
-                                <button onClick={(e) => { e.stopPropagation(); setAddingTagForFriend(friend.id) }} className="text-xs font-medium text-green-600 hover:text-green-700 flex items-center gap-1 transition-colors">
-                                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-                                  </svg>
-                                  タグを追加
-                                </button>
-                              )
-                            )}
+                            <p className="text-sm font-medium text-gray-900">
+                              {friend.displayName || '名前なし'}
+                            </p>
+                            <p className="text-xs text-gray-400 mt-0.5 font-mono truncate max-w-[160px]">
+                              {friend.lineUserId}
+                            </p>
                           </div>
                         </div>
                       </td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap gap-1">
+                          {friendTags.map((tag) => (
+                            <span
+                              key={tag.id}
+                              className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium"
+                              style={{
+                                backgroundColor: tag.color ? tag.color + '20' : '#e5e7eb',
+                                color: tag.color || '#374151',
+                              }}
+                            >
+                              {tag.name}
+                            </span>
+                          ))}
+                        </div>
+                      </td>
+                      <td className="px-4 py-3 text-sm text-gray-500 whitespace-nowrap">
+                        {new Date(friend.createdAt).toLocaleDateString('ja-JP')}
+                      </td>
+                      <td className="px-4 py-3">
+                        <div className="flex items-center gap-2">
+                          <Link
+                            href={`/friends/${friend.id}`}
+                            className="px-3 py-1 text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
+                          >
+                            詳細
+                          </Link>
+                          <button
+                            onClick={() => setExpandedId(isExpanded ? null : friend.id)}
+                            className="px-3 py-1 text-xs font-medium text-gray-600 hover:text-gray-800 bg-gray-50 hover:bg-gray-100 rounded-md transition-colors"
+                          >
+                            {isExpanded ? '閉じる' : 'タグ編集'}
+                          </button>
+                        </div>
+                      </td>
                     </tr>
-                  )}
-                </>
-              )
-            })}
-          </tbody>
-        </table>
+                    {isExpanded && (
+                      <tr key={`${friend.id}-expanded`} className="bg-gray-50">
+                        <td colSpan={5} className="px-6 py-4">
+                          <div className="space-y-3">
+                            {/* Current tags with remove */}
+                            <div>
+                              <p className="text-xs font-medium text-gray-500 mb-2">現在のタグ</p>
+                              {friendTags.length === 0 ? (
+                                <p className="text-xs text-gray-400">タグなし</p>
+                              ) : (
+                                <div className="flex flex-wrap gap-1.5">
+                                  {friendTags.map((tag) => (
+                                    <span
+                                      key={tag.id}
+                                      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium"
+                                      style={{
+                                        backgroundColor: tag.color ? tag.color + '20' : '#e5e7eb',
+                                        color: tag.color || '#374151',
+                                      }}
+                                    >
+                                      {tag.name}
+                                      <button
+                                        onClick={() => handleRemoveTag(friend.id, tag.id)}
+                                        className="hover:text-red-500 transition-colors"
+                                      >
+                                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                        </svg>
+                                      </button>
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                            {/* Add tag */}
+                            {availableTags.length > 0 && (
+                              <div className="flex items-center gap-2">
+                                <select
+                                  defaultValue=""
+                                  onChange={(e) => {
+                                    if (e.target.value) {
+                                      handleAddTag(friend.id, e.target.value)
+                                      e.target.value = ''
+                                    }
+                                  }}
+                                  className="border border-gray-300 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-green-500"
+                                >
+                                  <option value="">タグを追加...</option>
+                                  {availableTags.map((t) => (
+                                    <option key={t.id} value={t.id}>{t.name}</option>
+                                  ))}
+                                </select>
+                              </div>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    )}
+                  </>
+                )
+              })}
+            </tbody>
+          </table>
+        </div>
+        {friends.length === 0 && (
+          <div className="p-8 text-center text-gray-400 text-sm">
+            該当する友だちがいません
+          </div>
+        )}
       </div>
     </div>
   )
