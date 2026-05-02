@@ -1,5 +1,4 @@
 'use client'
-
 import { useState, useEffect, useCallback } from 'react'
 import { fetchApi } from '@/lib/api'
 import Header from '@/components/layout/header'
@@ -40,11 +39,29 @@ export default function FormSubmissionsPage() {
   const [submissionsLoading, setSubmissionsLoading] = useState(false)
   const [error, setError] = useState('')
   const [view, setView] = useState<'list' | 'create' | 'submissions'>('list')
-
   const [formName, setFormName] = useState('')
   const [formDesc, setFormDesc] = useState('')
   const [fields, setFields] = useState<FormField[]>([])
   const [saving, setSaving] = useState(false)
+  const [copiedId, setCopiedId] = useState<string | null>(null)
+  const [qrTarget, setQrTarget] = useState<{ id: string; url: string; name: string } | null>(null)
+  const [workerOrigin, setWorkerOrigin] = useState('')
+
+  useEffect(() => {
+    // Detect worker origin from current page origin (replace admin domain with worker domain)
+    const origin = window.location.origin
+    // Default fallback: same origin /forms path
+    setWorkerOrigin(origin)
+  }, [])
+
+  const getFormUrl = (formId: string) => `${workerOrigin}/forms/${formId}`
+  const getQrUrl = (url: string) => `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(url)}&size=300x300&margin=10`
+
+  const copyFormUrl = async (formId: string) => {
+    await navigator.clipboard.writeText(getFormUrl(formId))
+    setCopiedId(formId)
+    setTimeout(() => setCopiedId(null), 2000)
+  }
 
   const loadForms = useCallback(async () => {
     setLoading(true)
@@ -91,9 +108,7 @@ export default function FormSubmissionsPage() {
     }
   }, [selectedAccountId])
 
-  useEffect(() => {
-    loadForms()
-  }, [loadForms])
+  useEffect(() => { loadForms() }, [loadForms])
 
   const openSubmissions = (form: Form) => {
     setSelectedForm(form)
@@ -248,6 +263,24 @@ export default function FormSubmissionsPage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <Header title="フォーム回答" description="フォーム送信データの一覧" />
+
+      {qrTarget && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center" onClick={() => setQrTarget(null)}>
+          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-xs mx-4" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-base font-bold text-center mb-1">QRコード</h2>
+            <p className="text-xs text-gray-500 text-center mb-3">{qrTarget.name}</p>
+            <div className="flex justify-center mb-4">
+              <img src={getQrUrl(qrTarget.url)} alt="QRコード" width={240} height={240} className="rounded-lg border border-gray-200" />
+            </div>
+            <p className="text-xs text-gray-400 text-center mb-4 break-all">{qrTarget.url}</p>
+            <div className="flex gap-2">
+              <button onClick={() => setQrTarget(null)} className="flex-1 border border-gray-300 text-gray-700 py-2 rounded-lg text-sm">閉じる</button>
+              <a href={getQrUrl(qrTarget.url)} download={`qr-${qrTarget.id}.png`} target="_blank" rel="noopener noreferrer" className="flex-1 bg-green-500 hover:bg-green-600 text-white py-2 rounded-lg text-sm font-medium text-center">ダウンロード</a>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="max-w-4xl mx-auto px-4 py-6">
         <div className="flex items-center justify-between mb-6">
           <h2 className="text-lg font-semibold text-gray-800">フォーム一覧</h2>
@@ -261,15 +294,32 @@ export default function FormSubmissionsPage() {
         ) : (
           <div className="space-y-3">
             {forms.map((form) => (
-              <div key={form.id} className="bg-white rounded-xl border border-gray-200 p-4 flex items-center justify-between">
-                <div>
-                  <p className="font-medium text-gray-900">{form.name}</p>
-                  {form.description && <p className="text-sm text-gray-500 mt-0.5">{form.description}</p>}
-                  <p className="text-xs text-gray-400 mt-1">回答数: {form.submitCount ?? 0}件 · 項目: {(form.fields || []).length}個</p>
-                </div>
-                <div className="flex gap-2">
-                  <button onClick={() => openSubmissions(form)} className="text-sm text-blue-600 hover:text-blue-800 px-3 py-1 rounded border border-blue-200 hover:bg-blue-50">回答を見る</button>
-                  <button onClick={() => handleDelete(form.id, form.name)} className="text-sm text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50">削除</button>
+              <div key={form.id} className="bg-white rounded-xl border border-gray-200 p-4">
+                <div className="flex items-start justify-between">
+                  <div className="flex-1 min-w-0">
+                    <p className="font-medium text-gray-900">{form.name}</p>
+                    {form.description && <p className="text-sm text-gray-500 mt-0.5">{form.description}</p>}
+                    <p className="text-xs text-gray-400 mt-1">回答数: {form.submitCount ?? 0}件 ・ 項目: {(form.fields || []).length}個</p>
+                    <div className="flex items-center gap-2 mt-2 flex-wrap">
+                      <span className="text-xs text-gray-400 truncate max-w-xs">{getFormUrl(form.id)}</span>
+                      <button
+                        onClick={() => copyFormUrl(form.id)}
+                        className="text-xs bg-blue-50 text-blue-600 hover:bg-blue-100 px-2 py-1 rounded"
+                      >
+                        {copiedId === form.id ? 'コピー済み ✓' : 'URLコピー'}
+                      </button>
+                      <button
+                        onClick={() => setQrTarget({ id: form.id, url: getFormUrl(form.id), name: form.name })}
+                        className="text-xs bg-purple-50 text-purple-600 hover:bg-purple-100 px-2 py-1 rounded"
+                      >
+                        QRコード
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 ml-4 shrink-0">
+                    <button onClick={() => openSubmissions(form)} className="text-sm text-blue-600 hover:text-blue-800 px-3 py-1 rounded border border-blue-200 hover:bg-blue-50">回答を見る</button>
+                    <button onClick={() => handleDelete(form.id, form.name)} className="text-sm text-red-500 hover:text-red-700 px-2 py-1 rounded hover:bg-red-50">削除</button>
+                  </div>
                 </div>
               </div>
             ))}
