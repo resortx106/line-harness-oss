@@ -1,11 +1,10 @@
 'use client'
-
 import { useState, useEffect, useCallback } from 'react'
+import Link from 'next/link'
 import type { Scenario, ScenarioTriggerType } from '@line-crm/shared'
 import { api } from '@/lib/api'
 import { useAccount } from '@/contexts/account-context'
 import Header from '@/components/layout/header'
-import ScenarioList from '@/components/scenarios/scenario-list'
 import CcPromptButton from '@/components/cc-prompt-button'
 
 const ccPrompts = [
@@ -29,6 +28,18 @@ const ccPrompts = [
 ]
 
 type ScenarioWithCount = Scenario & { stepCount?: number }
+
+const triggerLabelMap: Record<string, string> = {
+  friend_add: '友だち追加時',
+  tag_added: 'タグ付与時',
+  manual: '手動',
+}
+
+const triggerBadgeColor: Record<string, string> = {
+  friend_add: 'bg-green-100 text-green-700',
+  tag_added: 'bg-blue-100 text-blue-700',
+  manual: 'bg-gray-100 text-gray-600',
+}
 
 const triggerOptions: { value: ScenarioTriggerType; label: string }[] = [
   { value: 'friend_add', label: '友だち追加時' },
@@ -120,6 +131,7 @@ export default function ScenariosPage() {
   }
 
   const handleDelete = async (id: string) => {
+    if (!confirm('このシナリオを削除しますか？')) return
     try {
       await api.scenarios.delete(id)
       loadScenarios()
@@ -143,14 +155,12 @@ export default function ScenariosPage() {
         }
       />
 
-      {/* Error */}
       {error && (
         <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
           {error}
         </div>
       )}
 
-      {/* Create form */}
       {showCreate && (
         <div className="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h2 className="text-sm font-semibold text-gray-800 mb-4">新規シナリオを作成</h2>
@@ -197,9 +207,7 @@ export default function ScenariosPage() {
               />
               <label htmlFor="isActive" className="text-sm text-gray-600">作成後すぐに有効にする</label>
             </div>
-
             {formError && <p className="text-xs text-red-600">{formError}</p>}
-
             <div className="flex gap-2">
               <button
                 onClick={handleCreate}
@@ -220,7 +228,6 @@ export default function ScenariosPage() {
         </div>
       )}
 
-      {/* Loading skeleton */}
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {[...Array(3)].map((_, i) => (
@@ -234,13 +241,55 @@ export default function ScenariosPage() {
             </div>
           ))}
         </div>
+      ) : scenarios.length === 0 && !showCreate ? (
+        <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center">
+          <p className="text-gray-500">シナリオがありません。「新規シナリオ」から作成してください。</p>
+        </div>
       ) : (
-        <ScenarioList
-          scenarios={scenarios}
-          onToggleActive={handleToggleActive}
-          onDelete={handleDelete}
-          loading={loading}
-        />
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {scenarios.map((scenario) => (
+            <div key={scenario.id} className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 hover:shadow-md transition-shadow">
+              <div className="flex items-start justify-between mb-2">
+                <h3 className="text-sm font-semibold text-gray-900 leading-tight">{scenario.name}</h3>
+                <button
+                  onClick={() => handleToggleActive(scenario.id, scenario.isActive)}
+                  className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${scenario.isActive ? 'bg-green-500' : 'bg-gray-300'}`}
+                  title={scenario.isActive ? '有効 - クリックで無効化' : '無効 - クリックで有効化'}
+                >
+                  <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${scenario.isActive ? 'translate-x-4' : 'translate-x-0'}`} />
+                </button>
+              </div>
+              {scenario.description && (
+                <p className="text-xs text-gray-500 mb-3 line-clamp-2">{scenario.description}</p>
+              )}
+              <div className="flex items-center gap-2 mb-3">
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${triggerBadgeColor[scenario.triggerType] || 'bg-gray-100 text-gray-600'}`}>
+                  {triggerLabelMap[scenario.triggerType] || scenario.triggerType}
+                </span>
+                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${scenario.isActive ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                  {scenario.isActive ? '有効' : '無効'}
+                </span>
+              </div>
+              {scenario.stepCount !== undefined && (
+                <p className="text-xs text-gray-400 mb-3">ステップ数: {scenario.stepCount}件</p>
+              )}
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
+                <Link
+                  href={`/scenarios/${scenario.id}`}
+                  className="px-3 py-1 min-h-[36px] flex items-center text-xs font-medium text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 rounded-md transition-colors"
+                >
+                  ステップ編集
+                </Link>
+                <button
+                  onClick={() => handleDelete(scenario.id)}
+                  className="px-3 py-1 min-h-[36px] text-xs font-medium text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
+                >
+                  削除
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
       <CcPromptButton prompts={ccPrompts} />
