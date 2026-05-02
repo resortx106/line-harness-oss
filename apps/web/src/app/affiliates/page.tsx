@@ -62,7 +62,6 @@ export default function AffiliatesPage() {
   const [saving, setSaving] = useState(false)
   const [copied, setCopied] = useState<string | null>(null)
   const [qrTarget, setQrTarget] = useState<{ code: string; url: string } | null>(null)
-  // Report state
   const [expandedReportId, setExpandedReportId] = useState<string | null>(null)
   const [reports, setReports] = useState<Record<string, AffiliateReport | null>>({})
   const [reportsLoading, setReportsLoading] = useState<Record<string, boolean>>({})
@@ -71,8 +70,8 @@ export default function AffiliatesPage() {
     setLoading(true)
     setError('')
     try {
-      const params = selectedAccountId ? `?accountId=${selectedAccountId}` : ''
-      const data = await fetchApi<Affiliate[] | { items: Affiliate[] } | { success: boolean; data: Affiliate[] }>(`/api/affiliates${params}`)
+      const params = selectedAccountId ? '?accountId=' + selectedAccountId : ''
+      const data = await fetchApi<Affiliate[] | { items: Affiliate[] } | { success: boolean; data: Affiliate[] }>('/api/affiliates' + params)
       if (Array.isArray(data)) {
         setAffiliates(data)
       } else if ('items' in data && Array.isArray(data.items)) {
@@ -91,8 +90,8 @@ export default function AffiliatesPage() {
 
   const loadLineAccount = useCallback(async () => {
     try {
-      const params = selectedAccountId ? `?accountId=${selectedAccountId}` : ''
-      const data = await fetchApi<LineAccount[] | { items: LineAccount[] }>(`/api/line-accounts${params}`)
+      const params = selectedAccountId ? '?accountId=' + selectedAccountId : ''
+      const data = await fetchApi<LineAccount[] | { items: LineAccount[] }>('/api/line-accounts' + params)
       const accounts = Array.isArray(data) ? data : (data.items || [])
       if (accounts.length > 0) setLineAccount(accounts[0])
     } catch {
@@ -111,7 +110,7 @@ export default function AffiliatesPage() {
       return
     }
     setExpandedReportId(id)
-    if (reports[id] !== undefined) return // already loaded
+    if (reports[id] !== undefined) return
     setReportsLoading((prev) => ({ ...prev, [id]: true }))
     try {
       const res = await api.affiliates.report(id)
@@ -129,11 +128,11 @@ export default function AffiliatesPage() {
 
   const getLineLink = (code: string) => {
     if (!lineAccount?.channelId) return null
-    return `https://line.me/R/ti/p/@${lineAccount.channelId}?ref=${code}`
+    return 'https://line.me/R/ti/p/@' + lineAccount.channelId + '?ref=' + code
   }
 
   const getQrUrl = (link: string) =>
-    `https://api.qrserver.com/v1/create-qr-code/?data=${encodeURIComponent(link)}&size=300x300&margin=10`
+    'https://api.qrserver.com/v1/create-qr-code/?data=' + encodeURIComponent(link) + '&size=300x300&margin=10'
 
   const copyLink = async (code: string) => {
     const link = getLineLink(code)
@@ -153,7 +152,7 @@ export default function AffiliatesPage() {
     const qrUrl = getQrUrl(url)
     const a = document.createElement('a')
     a.href = qrUrl
-    a.download = `qr-${code}.png`
+    a.download = 'qr-' + code + '.png'
     a.target = '_blank'
     a.click()
   }
@@ -184,7 +183,7 @@ export default function AffiliatesPage() {
     setSaving(true)
     try {
       const body = { name: formName.trim(), code: formCode.trim() }
-      const url = editingId ? `/api/affiliates/${editingId}` : `/api/affiliates`
+      const url = editingId ? '/api/affiliates/' + editingId : '/api/affiliates'
       const method = editingId ? 'PUT' : 'POST'
       await fetchApi<unknown>(url, {
         method,
@@ -201,9 +200,9 @@ export default function AffiliatesPage() {
   }
 
   const handleDelete = async (id: string, name: string) => {
-    if (!confirm(`「${name}」を削除しますか？`)) return
+    if (!confirm('「' + name + '」を削除しますか？')) return
     try {
-      await fetchApi<unknown>(`/api/affiliates/${id}`, { method: 'DELETE' })
+      await fetchApi<unknown>('/api/affiliates/' + id, { method: 'DELETE' })
       await loadAffiliates()
     } catch {
       alert('削除に失敗しました')
@@ -330,7 +329,7 @@ export default function AffiliatesPage() {
                     <div className="flex gap-2 ml-4 shrink-0">
                       <button
                         onClick={() => toggleReport(aff.id)}
-                        className={`flex items-center gap-1 text-xs px-2.5 py-1 rounded transition-colors ${isExpanded ? 'bg-indigo-100 text-indigo-700' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100'}`}
+                        className={"flex items-center gap-1 text-xs px-2.5 py-1 rounded transition-colors " + (isExpanded ? 'bg-indigo-100 text-indigo-700' : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100')}
                       >
                         <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
@@ -347,7 +346,6 @@ export default function AffiliatesPage() {
                   </div>
                 </div>
 
-                {/* Report panel */}
                 {isExpanded && (
                   <div className="border-t border-gray-100 bg-gray-50 px-4 py-4">
                     {reportsLoading[aff.id] ? (
