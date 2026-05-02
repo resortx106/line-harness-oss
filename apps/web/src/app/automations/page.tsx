@@ -123,7 +123,7 @@ export default function AutomationsPage() {
   const [formError, setFormError] = useState('')
   // Log viewer state
   const [expandedLogId, setExpandedLogId] = useState<string | null>(null)
-  const [logs, setLogs] = useState<Record<string, AutomationLog[]>>({})
+  const [logs, setLogs] = useState({} as Record<string, AutomationLog[]>)
   const [logsLoading, setLogsLoading] = useState<Record<string, boolean>>({})
 
   const loadAutomations = useCallback(async () => {
@@ -158,7 +158,7 @@ export default function AutomationsPage() {
     try {
       const res = await api.automations.logs(id, 30)
       if (res.success) {
-        setLogs((prev) => ({ ...prev, [id]: res.data }))
+        setLogs((prev) => ({ ...prev, [id]: (res.data as AutomationLog[]) }))
       }
     } catch {
       setLogs((prev) => ({ ...prev, [id]: [] }))
