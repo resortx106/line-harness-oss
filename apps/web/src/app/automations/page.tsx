@@ -1,5 +1,4 @@
 'use client'
-
 import { useState, useEffect, useCallback } from 'react'
 import { api } from '@/lib/api'
 import { useAccount } from '@/contexts/account-context'
@@ -11,6 +10,15 @@ type AutomationEventType = "friend_add" | "tag_change" | "score_threshold" | "cv
 interface AutomationAction {
   type: "add_tag" | "remove_tag" | "start_scenario" | "send_message" | "send_webhook" | "switch_rich_menu"
   params: Record<string, unknown>
+}
+
+interface AutomationLog {
+  id: string
+  friendId: string | null
+  eventData: Record<string, unknown> | null
+  actionsResult: Record<string, unknown> | null
+  status: string
+  createdAt: string
 }
 
 interface Automation {
@@ -53,6 +61,13 @@ const eventTypeBadgeColor: Record<AutomationEventType, string> = {
   calendar_booked: 'bg-indigo-100 text-indigo-700',
 }
 
+const logStatusConfig: Record<string, { label: string; className: string }> = {
+  success: { label: '成功', className: 'bg-green-100 text-green-700' },
+  failed: { label: '失敗', className: 'bg-red-100 text-red-700' },
+  error: { label: 'エラー', className: 'bg-red-100 text-red-700' },
+  skipped: { label: 'スキップ', className: 'bg-gray-100 text-gray-500' },
+}
+
 interface CreateFormState {
   name: string
   description: string
@@ -90,6 +105,13 @@ const ccPrompts = [
   },
 ]
 
+function formatDatetime(iso: string): string {
+  return new Date(iso).toLocaleString('ja-JP', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit',
+  })
+}
+
 export default function AutomationsPage() {
   const { selectedAccountId } = useAccount()
   const [automations, setAutomations] = useState<Automation[]>([])
@@ -99,6 +121,10 @@ export default function AutomationsPage() {
   const [form, setForm] = useState<CreateFormState>({ ...initialForm })
   const [saving, setSaving] = useState(false)
   const [formError, setFormError] = useState('')
+  // Log viewer state
+  const [expandedLogId, setExpandedLogId] = useState<string | null>(null)
+  const [logs, setLogs] = useState<Record<string, AutomationLog[]>>({})
+  const [logsLoading, setLogsLoading] = useState<Record<string, boolean>>({})
 
   const loadAutomations = useCallback(async () => {
     setLoading(true)
@@ -121,12 +147,31 @@ export default function AutomationsPage() {
     loadAutomations()
   }, [loadAutomations])
 
+  const toggleLogs = async (id: string) => {
+    if (expandedLogId === id) {
+      setExpandedLogId(null)
+      return
+    }
+    setExpandedLogId(id)
+    if (logs[id]) return // already loaded
+    setLogsLoading((prev) => ({ ...prev, [id]: true }))
+    try {
+      const res = await api.automations.logs(id, 30)
+      if (res.success) {
+        setLogs((prev) => ({ ...prev, [id]: res.data }))
+      }
+    } catch {
+      setLogs((prev) => ({ ...prev, [id]: [] }))
+    } finally {
+      setLogsLoading((prev) => ({ ...prev, [id]: false }))
+    }
+  }
+
   const handleCreate = async () => {
     if (!form.name.trim()) {
       setFormError('ルール名を入力してください')
       return
     }
-
     let parsedActions: AutomationAction[]
     let parsedConditions: Record<string, unknown>
     try {
@@ -141,7 +186,6 @@ export default function AutomationsPage() {
       setFormError('条件のJSON形式が正しくありません')
       return
     }
-
     setSaving(true)
     setFormError('')
     try {
@@ -201,22 +245,19 @@ export default function AutomationsPage() {
         }
       />
 
-      {/* Error */}
       {error && (
         <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm">
           {error}
         </div>
       )}
 
-      {/* Create form */}
       {showCreate && (
         <div className="mb-6 bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h2 className="text-sm font-semibold text-gray-800 mb-4">新規オートメーションを作成</h2>
           <div className="space-y-4 max-w-lg">
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">ルール名 <span className="text-red-500">*</span></label>
-              <input
-                type="text"
+              <input type="text"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 placeholder="例: 友だち追加時にウェルカムタグ付与"
                 value={form.name}
@@ -267,16 +308,13 @@ export default function AutomationsPage() {
             </div>
             <div>
               <label className="block text-xs font-medium text-gray-600 mb-1">優先度</label>
-              <input
-                type="number"
+              <input type="number"
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500"
                 value={form.priority}
                 onChange={(e) => setForm({ ...form, priority: parseInt(e.target.value, 10) || 0 })}
               />
             </div>
-
             {formError && <p className="text-xs text-red-600">{formError}</p>}
-
             <div className="flex gap-2">
               <button
                 onClick={handleCreate}
@@ -297,7 +335,6 @@ export default function AutomationsPage() {
         </div>
       )}
 
-      {/* Loading skeleton */}
       {loading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {[...Array(3)].map((_, i) => (
@@ -318,64 +355,91 @@ export default function AutomationsPage() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
           {automations.map((automation) => (
-            <div
-              key={automation.id}
-              className="bg-white rounded-lg shadow-sm border border-gray-200 p-5 hover:shadow-md transition-shadow"
-            >
-              {/* Header row */}
-              <div className="flex items-start justify-between mb-2">
-                <h3 className="text-sm font-semibold text-gray-900 leading-tight">{automation.name}</h3>
-                <button
-                  onClick={() => handleToggleActive(automation.id, automation.isActive)}
-                  className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
-                    automation.isActive ? 'bg-green-500' : 'bg-gray-300'
-                  }`}
-                  title={automation.isActive ? '有効 - クリックで無効化' : '無効 - クリックで有効化'}
-                >
-                  <span
-                    className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
-                      automation.isActive ? 'translate-x-4' : 'translate-x-0'
-                    }`}
-                  />
-                </button>
+            <div key={automation.id} className="bg-white rounded-lg shadow-sm border border-gray-200 hover:shadow-md transition-shadow">
+              <div className="p-5">
+                <div className="flex items-start justify-between mb-2">
+                  <h3 className="text-sm font-semibold text-gray-900 leading-tight">{automation.name}</h3>
+                  <button
+                    onClick={() => handleToggleActive(automation.id, automation.isActive)}
+                    className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${automation.isActive ? 'bg-green-500' : 'bg-gray-300'}`}
+                    title={automation.isActive ? '有効 - クリックで無効化' : '無効 - クリックで有効化'}
+                  >
+                    <span className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${automation.isActive ? 'translate-x-4' : 'translate-x-0'}`} />
+                  </button>
+                </div>
+                {automation.description && (
+                  <p className="text-xs text-gray-500 mb-3 line-clamp-2">{automation.description}</p>
+                )}
+                <div className="flex items-center gap-2 mb-3">
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${eventTypeBadgeColor[automation.eventType]}`}>
+                    {eventTypeLabelMap[automation.eventType]}
+                  </span>
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${automation.isActive ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'}`}>
+                    {automation.isActive ? '有効' : '無効'}
+                  </span>
+                </div>
+                <div className="flex items-center gap-4 text-xs text-gray-400 mb-3">
+                  <span>アクション: {automation.actions.length}件</span>
+                  <span>優先度: {automation.priority}</span>
+                </div>
+                <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                  <button
+                    onClick={() => toggleLogs(automation.id)}
+                    className="flex items-center gap-1 px-3 py-1 text-xs font-medium text-indigo-600 bg-indigo-50 hover:bg-indigo-100 rounded-md transition-colors"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
+                    </svg>
+                    {expandedLogId === automation.id ? 'ログを閉じる' : '実行ログ'}
+                  </button>
+                  <button
+                    onClick={() => handleDelete(automation.id)}
+                    className="px-3 py-1 min-h-[36px] text-xs font-medium text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
+                  >
+                    削除
+                  </button>
+                </div>
               </div>
 
-              {/* Description */}
-              {automation.description && (
-                <p className="text-xs text-gray-500 mb-3 line-clamp-2">{automation.description}</p>
+              {/* Log viewer panel */}
+              {expandedLogId === automation.id && (
+                <div className="border-t border-gray-200 px-5 py-4 bg-gray-50 rounded-b-lg">
+                  <p className="text-xs font-semibold text-gray-600 mb-3">実行ログ（直近30件）</p>
+                  {logsLoading[automation.id] ? (
+                    <div className="space-y-2">
+                      {[...Array(3)].map((_, i) => (
+                        <div key={i} className="h-8 bg-gray-200 rounded animate-pulse" />
+                      ))}
+                    </div>
+                  ) : !logs[automation.id] || logs[automation.id].length === 0 ? (
+                    <p className="text-xs text-gray-400 text-center py-4">ログがありません</p>
+                  ) : (
+                    <div className="space-y-2 max-h-64 overflow-y-auto">
+                      {logs[automation.id].map((log) => {
+                        const statusInfo = logStatusConfig[log.status] || { label: log.status, className: 'bg-gray-100 text-gray-600' }
+                        return (
+                          <div key={log.id} className="flex items-start justify-between gap-2 bg-white rounded border border-gray-200 px-3 py-2">
+                            <div className="min-w-0">
+                              {log.friendId && (
+                                <p className="text-xs text-gray-600 truncate">友だちID: {log.friendId}</p>
+                              )}
+                              <p className="text-xs text-gray-400">{formatDatetime(log.createdAt)}</p>
+                            </div>
+                            <span className={`shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium ${statusInfo.className}`}>
+                              {statusInfo.label}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  )}
+                </div>
               )}
-
-              {/* Event type badge */}
-              <div className="flex items-center gap-2 mb-3">
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${eventTypeBadgeColor[automation.eventType]}`}>
-                  {eventTypeLabelMap[automation.eventType]}
-                </span>
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
-                  automation.isActive ? 'bg-green-50 text-green-700' : 'bg-gray-100 text-gray-500'
-                }`}>
-                  {automation.isActive ? '有効' : '無効'}
-                </span>
-              </div>
-
-              {/* Meta info */}
-              <div className="flex items-center gap-4 text-xs text-gray-400 mb-3">
-                <span>アクション: {automation.actions.length}件</span>
-                <span>優先度: {automation.priority}</span>
-              </div>
-
-              {/* Actions */}
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-gray-100">
-                <button
-                  onClick={() => handleDelete(automation.id)}
-                  className="px-3 py-1 min-h-[44px] text-xs font-medium text-red-500 hover:text-red-700 bg-red-50 hover:bg-red-100 rounded-md transition-colors"
-                >
-                  削除
-                </button>
-              </div>
             </div>
           ))}
         </div>
       )}
+
       <CcPromptButton prompts={ccPrompts} />
     </div>
   )
