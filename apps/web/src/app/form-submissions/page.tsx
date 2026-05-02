@@ -251,14 +251,15 @@ export default function FormSubmissionsPage() {
       <div className="min-h-screen bg-gray-50">
         <Header title={selectedForm.name} description="フォーム回答一覧" />
         <div className="max-w-4xl mx-auto px-4 py-6">
-          <button onClick={() => setView('list')} className="text-sm text-gray-500 hover:text-gray-700 mb-4">← フォーム一覧に戻る</button>
-          {submissions.length > 0 && (
-            <button onClick={exportCsv} className='px-3 py-1.5 text-xs font-medium text-white rounded-lg flex items-center gap-1.5' style={{ backgroundColor: '#06C755' }}>
-              <svg className='w-4 h-4' fill='none' stroke='currentColor' viewBox='0 0 24 24'><path strokeLinecap='round' strokeLinejoin='round' strokeWidth={2} d='M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4' /></svg>
-              CSVエクスポート
-            </button>
-          )}
-        </div>
+          <div className="flex items-center justify-between mb-4">
+            <button onClick={() => setView('list')} className="text-sm text-gray-500 hover:text-gray-700">← フォーム一覧に戻る</button>
+            {submissions.length > 0 && (
+              <button onClick={exportCsv} className="px-3 py-1.5 text-xs font-medium text-white rounded-lg flex items-center gap-1.5" style={{ backgroundColor: '#06C755' }}>
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" /></svg>
+                CSVエクスポート
+              </button>
+            )}
+          </div>
           {submissionsLoading ? (
             <div className="text-center py-12 text-gray-400">読み込み中...</div>
           ) : submissions.length === 0 ? (
