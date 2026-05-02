@@ -1,8 +1,12 @@
 'use client'
 import { useState, useEffect, useCallback } from 'react'
-import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import { fetchApi } from '@/lib/api'
+
+// Required for Next.js static export with dynamic routes
+export function generateStaticParams() {
+  return []
+}
 
 interface Tag {
   id: string
@@ -24,9 +28,8 @@ interface Friend {
 
 const TAG_COLORS = ['#06C755','#3B82F6','#8B5CF6','#F59E0B','#EF4444','#10B981','#EC4899','#14B8A6']
 
-export default function FriendDetailPage() {
-  const params = useParams()
-  const friendId = params.friendId as string
+export default function FriendDetailPage({ params }: { params: { friendId: string } }) {
+  const friendId = params.friendId
 
   const [friend, setFriend] = useState<Friend | null>(null)
   const [allTags, setAllTags] = useState<Tag[]>([])
@@ -161,7 +164,7 @@ export default function FriendDetailPage() {
             {friend.pictureUrl ? (
               <img src={friend.pictureUrl} alt={friend.displayName} className="w-16 h-16 rounded-full object-cover" />
             ) : (
-              <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center text-2xl">👤</div>
+              <div className="w-16 h-16 rounded-full bg-gray-200 flex items-center justify-center text-2xl text-gray-400">👤</div>
             )}
             <div>
               <h1 className="text-xl font-bold text-gray-900">{friend.displayName}</h1>
@@ -190,10 +193,7 @@ export default function FriendDetailPage() {
                 style={{ backgroundColor: tag.color || '#06C755' }}
               >
                 {tag.name}
-                <button
-                  onClick={() => removeTag(tag.id)}
-                  className="ml-1 hover:opacity-70 leading-none"
-                >
+                <button onClick={() => removeTag(tag.id)} className="ml-1 hover:opacity-70 leading-none">
                   ×
                 </button>
               </span>
@@ -255,10 +255,7 @@ export default function FriendDetailPage() {
                     <span className="text-xs text-gray-500 font-mono">{key}</span>
                     <p className="text-sm text-gray-800">{String(val)}</p>
                   </div>
-                  <button
-                    onClick={() => deleteNote(key)}
-                    className="text-xs text-red-400 hover:text-red-600 ml-3 mt-0.5"
-                  >
+                  <button onClick={() => deleteNote(key)} className="text-xs text-red-400 hover:text-red-600 ml-3 mt-0.5">
                     削除
                   </button>
                 </div>
