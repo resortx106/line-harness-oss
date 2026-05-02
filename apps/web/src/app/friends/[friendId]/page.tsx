@@ -1,12 +1,11 @@
-'use client'
-import { useParams } from 'next/navigation'
 import FriendDetail from './client'
 
 export function generateStaticParams() {
   return []
 }
 
-export default function FriendDetailPage() {
-  const { friendId } = useParams<{ friendId: string }>()
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export default function FriendDetailPage(props: any) {
+  const friendId = props.params?.friendId ?? ''
   return <FriendDetail friendId={friendId} />
 }
