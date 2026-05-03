@@ -268,7 +268,7 @@ export default function ChatsPage() {
   const sendLockRef = useRef(false)
   const [notes, setNotes] = useState('')
   const [savingNotes, setSavingNotes] = useState(false)
-  const [templates, setTemplates] = useState<{id:string;name:string;content:string;messageType:string}[]>([])
+  const [templates, setTemplates] = useState<{id:string;name:string;messageContent:string;messageType:string}[]>([])
   const [showTemplateMenu, setShowTemplateMenu] = useState(false)
   const [showLoadingIndicator, setShowLoadingIndicator] = useState(false)
   const [loadingSeconds, setLoadingSeconds] = useState(5)
@@ -362,7 +362,7 @@ export default function ChatsPage() {
 
   useEffect(() => {
     api.templates.list().then(res => {
-      if (res.success) setTemplates((res.data as {messageType:string;id:string;name:string;content:string}[]).filter(t => t.messageType === 'text'))
+      if (res.success) setTemplates((res.data as unknown as {messageType:string;id:string;name:string;messageContent:string}[]).filter(t => t.messageType === 'text'))
     }).catch(() => {})
   }, [])
 
@@ -828,7 +828,7 @@ export default function ChatsPage() {
                       <button onClick={() => setShowTemplateMenu(false)} className="text-xs text-gray-400 hover:text-gray-600">閉じる</button>
                     </div>
                     {templates.map(t => (
-                      <button key={t.id} onClick={() => { setMessageContent(t.content); setShowTemplateMenu(false) }}
+                      <button key={t.id} onClick={() => { setMessageContent(t.messageContent); setShowTemplateMenu(false) }}
                         className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-50 last:border-0 truncate">
                         {t.name}
                       </button>
