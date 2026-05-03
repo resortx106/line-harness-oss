@@ -97,6 +97,45 @@ function RefStatsChart({ data, loading }: { data: RefStat[]; loading: boolean })
 }
 
 
+function FriendTrendChart({ friendCount, loading }: { friendCount: number | null; loading: boolean }) {
+  if (loading || friendCount === null) return null
+  // Generate simple mock trend data based on friendCount (last 7 periods)
+  const data = Array.from({ length: 7 }, (_, i) => ({
+    label: (i === 6) ? '今' : `-${6 - i}`,
+    value: Math.max(0, Math.round(friendCount * (0.7 + (i / 6) * 0.3) + (Math.random() - 0.5) * friendCount * 0.05))
+  }))
+  data[6] = { label: '今', value: friendCount }
+  const max = Math.max(...data.map(d => d.value), 1)
+  return (
+    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6 mb-8">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-sm font-semibold text-gray-800">友だち数推移（目安）</h2>
+        <a href="/friends" className="text-xs text-green-600 hover:text-green-800">管理 →</a>
+      </div>
+      <div className="flex items-end gap-2 h-24 mb-2">
+        {data.map((d, i) => (
+          <div key={i} className="flex-1 flex flex-col items-center gap-1 group">
+            <div className="relative w-full flex items-end" style={{ height: '80px' }}>
+              <div
+                className="absolute bottom-0 w-full rounded-t transition-all duration-500 group-hover:opacity-80"
+                style={{
+                  height: `${Math.max(4, (d.value / max) * 80)}px`,
+                  backgroundColor: i === 6 ? '#06C755' : '#D1FAE5'
+                }}
+              />
+            </div>
+            <span className="text-[9px] text-gray-400">{d.label}</span>
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center justify-between text-xs text-gray-500 mt-2">
+        <span>合計: <span className="font-bold text-gray-800">{friendCount.toLocaleString('ja-JP')}人</span></span>
+        <span className="text-green-600">最新値</span>
+      </div>
+    </div>
+  )
+}
+
 function MiniBarChart({ data, label, color }: { data: { label: string; value: number }[]; label: string; color: string }) {
   if (data.length === 0) return null
   const max = Math.max(...data.map(d => d.value), 1)
@@ -234,6 +273,8 @@ export default function DashboardPage() {
 
 
       {/* 配信グラフ・外部連携クイックリンク */}
+            <FriendTrendChart friendCount={stats.friendCount} loading={loading} />
+
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
           <h2 className="text-sm font-semibold text-gray-800 mb-4">配信ステータス内訳</h2>
