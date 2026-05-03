@@ -229,6 +229,18 @@ export default function ScenariosPage() {
         </div>
       )}
       {loading ? (
+        <div className="mb-4 grid grid-cols-3 gap-3">
+          {[
+            { label: 'アクティブ', value: scenarios.filter(s => s.isActive).length, color: '#06C755' },
+            { label: '停止中', value: scenarios.filter(s => !s.isActive).length, color: '#9CA3AF' },
+            { label: '登録者合計', value: scenarios.reduce((s, sc) => s + ((sc as {subscriberCount?:number}).subscriberCount ?? 0), 0), color: '#3B82F6' },
+          ].map(item => (
+            <div key={item.label} className="bg-white border border-gray-200 rounded-lg p-3 text-center">
+              <p className="text-xl font-bold" style={{ color: item.color }}>{item.value.toLocaleString('ja-JP')}</p>
+              <p className="text-xs text-gray-500 mt-0.5">{item.label}</p>
+            </div>
+          ))}
+        </div>
         <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'>
           {[...Array(3)].map((_, i) => (
             <div key={i} className='bg-white rounded-lg border border-gray-200 p-5 animate-pulse space-y-3'>
