@@ -228,7 +228,7 @@ export default function ScenariosPage() {
           </div>
         </div>
       )}
-      {loading ? (
+{!loading && scenarios.length > 0 && (
         <div className="mb-4 grid grid-cols-3 gap-3">
           {[
             { label: 'アクティブ', value: scenarios.filter(s => s.isActive).length, color: '#06C755' },
@@ -241,6 +241,9 @@ export default function ScenariosPage() {
             </div>
           ))}
         </div>
+      )}
+      {loading ? (
+        
         <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'>
           {[...Array(3)].map((_, i) => (
             <div key={i} className='bg-white rounded-lg border border-gray-200 p-5 animate-pulse space-y-3'>
