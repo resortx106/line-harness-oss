@@ -228,6 +228,20 @@ export default function ScenariosPage() {
           </div>
         </div>
       )}
+      {!loading && scenarios.length > 0 && (
+        <div className='mb-4 grid grid-cols-3 gap-3'>
+          {[
+            { label: 'アクティブ', value: scenarios.filter(s => s.isActive).length, color: 'text-green-600' },
+            { label: '停止中', value: scenarios.filter(s => !s.isActive).length, color: 'text-gray-500' },
+            { label: 'シナリオ数', value: scenarios.length, color: 'text-blue-600' },
+          ].map(stat => (
+            <div key={stat.label} className='bg-white rounded-lg border border-gray-200 px-4 py-3 flex flex-col items-center'>
+              <span className={'text-xl font-bold ' + stat.color}>{stat.value}</span>
+              <span className='text-xs text-gray-500 mt-0.5'>{stat.label}</span>
+            </div>
+          ))}
+        </div>
+      )}
       {loading ? (
         
         <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'>
