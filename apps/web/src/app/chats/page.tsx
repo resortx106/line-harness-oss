@@ -268,6 +268,8 @@ export default function ChatsPage() {
   const sendLockRef = useRef(false)
   const [notes, setNotes] = useState('')
   const [savingNotes, setSavingNotes] = useState(false)
+  const [templates, setTemplates] = useState<{id:string;name:string;content:string;messageType:string}[]>([])
+  const [showTemplateMenu, setShowTemplateMenu] = useState(false)
   const [showLoadingIndicator, setShowLoadingIndicator] = useState(false)
   const [loadingSeconds, setLoadingSeconds] = useState(5)
   const lastLoadingTriggerAtRef = useRef<Record<string, number>>({})
@@ -356,6 +358,12 @@ export default function ChatsPage() {
     } finally {
       setDetailLoading(false)
     }
+  }, [])
+
+  useEffect(() => {
+    api.templates.list().then(res => {
+      if (res.success) setTemplates((res.data as {messageType:string;id:string;name:string;content:string}[]).filter(t => t.messageType === 'text'))
+    }).catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -805,7 +813,28 @@ export default function ChatsPage() {
                     />
                     <span>Shift+Enter</span>
                   </label>
-                </div>
+                
+                  <button
+                    type="button"
+                    onClick={() => setShowTemplateMenu(prev => !prev)}
+                    className="px-2 py-1 text-xs font-medium text-blue-600 bg-blue-50 hover:bg-blue-100 rounded-md border border-blue-200 transition-colors"
+                  >
+                    📋 テンプレート
+                  </button></div>
+                {showTemplateMenu && templates.length > 0 && (
+                  <div className="mb-2 bg-white border border-gray-200 rounded-lg shadow-lg max-h-48 overflow-y-auto">
+                    <div className="px-3 py-2 border-b border-gray-100 flex items-center justify-between">
+                      <span className="text-xs font-semibold text-gray-600">テンプレート</span>
+                      <button onClick={() => setShowTemplateMenu(false)} className="text-xs text-gray-400 hover:text-gray-600">閉じる</button>
+                    </div>
+                    {templates.map(t => (
+                      <button key={t.id} onClick={() => { setMessageContent(t.content); setShowTemplateMenu(false) }}
+                        className="w-full text-left px-3 py-2 text-sm text-gray-700 hover:bg-gray-50 border-b border-gray-50 last:border-0 truncate">
+                        {t.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <div className="flex items-end gap-2">
                   <textarea
                     rows={2}
