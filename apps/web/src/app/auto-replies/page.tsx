@@ -32,6 +32,8 @@ export default function AutoRepliesPage() {
   const { selectedAccountId } = useAccount()
   const [items, setItems] = useState<AutoReply[]>([])
   const [loading, setLoading] = useState(true)
+  const [testInput, setTestInput] = useState('')
+  const [testMatch, setTestMatch] = useState<AutoReply | null | undefined>(undefined)
   const [error, setError] = useState('')
   const [showForm, setShowForm] = useState(false)
   const [editItem, setEditItem] = useState<AutoReply | null>(null)
@@ -100,6 +102,18 @@ export default function AutoRepliesPage() {
     }
   }
 
+  
+  const handleTest = () => {
+    if (!testInput.trim() || items.length === 0) { setTestMatch(null); return }
+    const q = testInput.trim()
+    const matched = items.find(item => {
+      if (!item.isActive) return false
+      if (item.matchType === 'exact') return item.keyword === q
+      return q.includes(item.keyword) || item.keyword.includes(q)
+    }) ?? null
+    setTestMatch(matched)
+  }
+
   const handleDelete = async (id: string) => {
     if (!confirm('削除しますか？')) return
     try {
@@ -125,6 +139,36 @@ export default function AutoRepliesPage() {
   return (
     <div>
       <Header title="自動返信設定" />
+      {/* キーワードマッチテスター */}
+      <div className="mb-4 bg-blue-50 border border-blue-200 rounded-xl p-4">
+        <h3 className="text-sm font-semibold text-blue-800 mb-2">キーワードテスター</h3>
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={testInput}
+            onChange={e => setTestInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && handleTest()}
+            placeholder="ユーザーのメッセージを入力..."
+            className="flex-1 border border-blue-300 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-400"
+          />
+          <button onClick={handleTest}
+            className="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700">
+            テスト
+          </button>
+        </div>
+        {testMatch !== undefined && (
+          <div className={`mt-2 p-3 rounded-lg text-sm ${testMatch ? 'bg-green-100 border border-green-300 text-green-800' : 'bg-red-100 border border-red-200 text-red-700'}`}>
+            {testMatch ? (
+              <>
+                <span className="font-semibold">キーワード 「{testMatch.keyword}」</span> (
+                {testMatch.matchType === 'exact' ? '完全一致' : '部分一致'})にマッチしました。
+                <div className="mt-1 text-xs bg-white/60 rounded p-2">返信: {testMatch.responseContent}</div>
+              </>
+            ) : 'マッチする自動返信がありません'}
+          </div>
+        )}
+      </div>
+      
 
       <div className="flex justify-end mb-4">
         <button
