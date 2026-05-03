@@ -21,7 +21,17 @@ interface Friend {
   createdAt: string
 }
 
+interface MessageLog {
+  id: string
+  direction: 'incoming' | 'outgoing'
+  messageType: string
+  content: string
+  createdAt: string
+}
+
 const TAG_COLORS = ['#06C755','#3B82F6','#8B5CF6','#F59E0B','#EF4444','#10B981','#EC4899','#14B8A6']
+
+type TabKey = 'info' | 'history'
 
 export default function FriendDetail({ friendId }: { friendId: string }) {
   const [friend, setFriend] = useState<Friend | null>(null)
@@ -34,6 +44,9 @@ export default function FriendDetail({ friendId }: { friendId: string }) {
   const [noteKey, setNoteKey] = useState('')
   const [noteValue, setNoteValue] = useState('')
   const [savingNote, setSavingNote] = useState(false)
+  const [activeTab, setActiveTab] = useState<TabKey>('info')
+  const [messages, setMessages] = useState<MessageLog[]>([])
+  const [loadingMessages, setLoadingMessages] = useState(false)
 
   const loadFriend = useCallback(async () => {
     try {
@@ -53,10 +66,23 @@ export default function FriendDetail({ friendId }: { friendId: string }) {
     } catch { /* ignore */ }
   }, [])
 
+  const loadMessages = useCallback(async () => {
+    setLoadingMessages(true)
+    try {
+      const res = await fetchApi<{ success: boolean; data: MessageLog[] }>(`/api/friends/${friendId}/messages`)
+      if (res.success) setMessages(res.data)
+    } catch { /* ignore */ }
+    setLoadingMessages(false)
+  }, [friendId])
+
   useEffect(() => {
     loadFriend()
     loadTags()
   }, [loadFriend, loadTags])
+
+  useEffect(() => {
+    if (activeTab === 'history') loadMessages()
+  }, [activeTab, loadMessages])
 
   const addExistingTag = async (tag: Tag) => {
     if (!friend) return
@@ -69,8 +95,11 @@ export default function FriendDetail({ friendId }: { friendId: string }) {
         body: JSON.stringify({ tagId: tag.id }),
       })
       await loadFriend()
-    } catch { alert('タグの追加に失敗しました') }
-    finally { setAddingTag(false); setShowTagPicker(false) }
+    } catch {
+      alert('タグの追加に失敗しました')
+    } finally {
+      setAddingTag(false); setShowTagPicker(false)
+    }
   }
 
   const createAndAddTag = async () => {
@@ -93,15 +122,20 @@ export default function FriendDetail({ friendId }: { friendId: string }) {
         await loadFriend()
         await loadTags()
       }
-    } catch { alert('タグの作成に失敗しました') }
-    finally { setAddingTag(false) }
+    } catch {
+      alert('タグの作成に失敗しました')
+    } finally {
+      setAddingTag(false)
+    }
   }
 
   const removeTag = async (tagId: string) => {
     try {
       await fetchApi<unknown>(`/api/friends/${friendId}/tags/${tagId}`, { method: 'DELETE' })
       await loadFriend()
-    } catch { alert('タグの削除に失敗しました') }
+    } catch {
+      alert('タグの削除に失敗しました')
+    }
   }
 
   const saveNote = async () => {
@@ -116,8 +150,11 @@ export default function FriendDetail({ friendId }: { friendId: string }) {
       setNoteKey('')
       setNoteValue('')
       await loadFriend()
-    } catch { alert('メモの保存に失敗しました') }
-    finally { setSavingNote(false) }
+    } catch {
+      alert('メモの保存に失敗しました')
+    } finally {
+      setSavingNote(false)
+    }
   }
 
   const deleteNote = async (key: string) => {
@@ -129,7 +166,9 @@ export default function FriendDetail({ friendId }: { friendId: string }) {
         body: JSON.stringify(upd),
       })
       await loadFriend()
-    } catch { alert('メモの削除に失敗しました') }
+    } catch {
+      alert('メモの削除に失敗しました')
+    }
   }
 
   if (loading) return <div className="min-h-screen bg-gray-50 flex items-center justify-center"><p className="text-gray-400">読み込み中...</p></div>
@@ -145,6 +184,11 @@ export default function FriendDetail({ friendId }: { friendId: string }) {
   const metaEntries = Object.entries(friend.metadata || {}).filter(([, v]) => v !== null)
   const unattachedTags = allTags.filter(t => !friend.tags.some(ft => ft.id === t.id))
 
+  const tabs: { key: TabKey; label: string }[] = [
+    { key: 'info', label: '基本情報' },
+    { key: 'history', label: '配信履歴' },
+  ]
+
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-2xl mx-auto px-4 py-8">
@@ -152,6 +196,7 @@ export default function FriendDetail({ friendId }: { friendId: string }) {
           <Link href="/friends" className="text-sm text-gray-500 hover:text-gray-700">← 友だち一覧</Link>
         </div>
 
+        {/* Profile card */}
         <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-4">
           <div className="flex items-center gap-4">
             {friend.pictureUrl ? (
@@ -175,64 +220,149 @@ export default function FriendDetail({ friendId }: { friendId: string }) {
           <p className="text-xs text-gray-400 mt-3">登録日: {new Date(friend.createdAt).toLocaleDateString('ja-JP')}</p>
         </div>
 
-        <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-4">
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">タグ</h2>
-          <div className="flex flex-wrap gap-2 mb-3">
-            {friend.tags.length === 0 && <p className="text-sm text-gray-400">タグなし</p>}
-            {friend.tags.map(tag => (
-              <span key={tag.id} className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium text-white" style={{ backgroundColor: tag.color || '#06C755' }}>
-                {tag.name}
-                <button onClick={() => removeTag(tag.id)} className="ml-1 hover:opacity-70 leading-none">×</button>
-              </span>
-            ))}
-          </div>
-          {unattachedTags.length > 0 && (
-            <div className="mb-3">
-              <button onClick={() => setShowTagPicker(!showTagPicker)} className="text-xs text-blue-600 hover:text-blue-800 border border-blue-200 px-3 py-1 rounded-full">
-                + 既存タグを追加
-              </button>
-              {showTagPicker && (
-                <div className="mt-2 flex flex-wrap gap-2">
-                  {unattachedTags.map(tag => (
-                    <button key={tag.id} onClick={() => addExistingTag(tag)} disabled={addingTag} className="px-3 py-1 rounded-full text-sm font-medium text-white disabled:opacity-50" style={{ backgroundColor: tag.color || '#06C755' }}>
-                      {tag.name}
-                    </button>
+        {/* Tab navigation */}
+        <div className="flex border-b border-gray-200 mb-4">
+          {tabs.map(tab => (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
+              className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === tab.key
+                  ? 'border-green-500 text-green-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+
+        {activeTab === 'info' && (
+          <>
+            {/* Tags panel */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-6 mb-4">
+              <h2 className="text-sm font-semibold text-gray-700 mb-3">タグ</h2>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {friend.tags.length === 0 && <p className="text-sm text-gray-400">タグなし</p>}
+                {friend.tags.map(tag => (
+                  <span key={tag.id} className="inline-flex items-center gap-1 px-3 py-1 rounded-full text-sm font-medium text-white" style={{ backgroundColor: tag.color || '#06C755' }}>
+                    {tag.name}
+                    <button onClick={() => removeTag(tag.id)} className="ml-1 hover:opacity-70 leading-none">×</button>
+                  </span>
+                ))}
+              </div>
+              {unattachedTags.length > 0 && (
+                <div className="mb-3">
+                  <button onClick={() => setShowTagPicker(!showTagPicker)} className="text-xs text-blue-600 hover:text-blue-800 border border-blue-200 px-3 py-1 rounded-full">
+                    + 既存タグを追加
+                  </button>
+                  {showTagPicker && (
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {unattachedTags.map(tag => (
+                        <button key={tag.id} onClick={() => addExistingTag(tag)} disabled={addingTag}
+                          className="px-3 py-1 rounded-full text-sm font-medium text-white disabled:opacity-50"
+                          style={{ backgroundColor: tag.color || '#06C755' }}>
+                          {tag.name}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className="flex gap-2">
+                <input type="text" value={newTagName} onChange={(e) => setNewTagName(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && createAndAddTag()}
+                  placeholder="新しいタグ名"
+                  className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
+                <button onClick={createAndAddTag} disabled={addingTag || !newTagName.trim()}
+                  className="bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg text-sm font-medium">
+                  {addingTag ? '...' : '作成&追加'}
+                </button>
+              </div>
+            </div>
+
+            {/* Notes panel */}
+            <div className="bg-white rounded-2xl border border-gray-200 p-6">
+              <h2 className="text-sm font-semibold text-gray-700 mb-3">メモ（カスタム情報）</h2>
+              {metaEntries.length > 0 && (
+                <div className="space-y-2 mb-4">
+                  {metaEntries.map(([key, val]) => (
+                    <div key={key} className="flex items-start justify-between bg-gray-50 rounded-lg px-3 py-2">
+                      <div>
+                        <span className="text-xs text-gray-500 font-mono">{key}</span>
+                        <p className="text-sm text-gray-800">{String(val)}</p>
+                      </div>
+                      <button onClick={() => deleteNote(key)} className="text-xs text-red-400 hover:text-red-600 ml-3 mt-0.5">削除</button>
+                    </div>
                   ))}
                 </div>
               )}
+              <div className="flex gap-2">
+                <input type="text" value={noteKey} onChange={(e) => setNoteKey(e.target.value)}
+                  placeholder="項目名"
+                  className="w-28 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-green-400" />
+                <input type="text" value={noteValue} onChange={(e) => setNoteValue(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && saveNote()}
+                  placeholder="内容"
+                  className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-green-400" />
+                <button onClick={saveNote} disabled={savingNote || !noteKey.trim() || !noteValue.trim()}
+                  className="bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg text-sm font-medium">
+                  {savingNote ? '...' : '保存'}
+                </button>
+              </div>
             </div>
-          )}
-          <div className="flex gap-2">
-            <input type="text" value={newTagName} onChange={(e) => setNewTagName(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && createAndAddTag()} placeholder="新しいタグ名" className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-green-400" />
-            <button onClick={createAndAddTag} disabled={addingTag || !newTagName.trim()} className="bg-green-500 hover:bg-green-600 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg text-sm font-medium">
-              {addingTag ? '...' : '作成&追加'}
-            </button>
-          </div>
-        </div>
+          </>
+        )}
 
-        <div className="bg-white rounded-2xl border border-gray-200 p-6">
-          <h2 className="text-sm font-semibold text-gray-700 mb-3">メモ（カスタム情報）</h2>
-          {metaEntries.length > 0 && (
-            <div className="space-y-2 mb-4">
-              {metaEntries.map(([key, val]) => (
-                <div key={key} className="flex items-start justify-between bg-gray-50 rounded-lg px-3 py-2">
-                  <div>
-                    <span className="text-xs text-gray-500 font-mono">{key}</span>
-                    <p className="text-sm text-gray-800">{String(val)}</p>
-                  </div>
-                  <button onClick={() => deleteNote(key)} className="text-xs text-red-400 hover:text-red-600 ml-3 mt-0.5">削除</button>
-                </div>
-              ))}
-            </div>
-          )}
-          <div className="flex gap-2">
-            <input type="text" value={noteKey} onChange={(e) => setNoteKey(e.target.value)} placeholder="項目名" className="w-28 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-green-400" />
-            <input type="text" value={noteValue} onChange={(e) => setNoteValue(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && saveNote()} placeholder="内容" className="flex-1 border border-gray-300 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-green-400" />
-            <button onClick={saveNote} disabled={savingNote || !noteKey.trim() || !noteValue.trim()} className="bg-blue-500 hover:bg-blue-600 disabled:opacity-50 text-white px-3 py-1.5 rounded-lg text-sm font-medium">
-              {savingNote ? '...' : '保存'}
-            </button>
+        {activeTab === 'history' && (
+          <div className="bg-white rounded-2xl border border-gray-200 p-6">
+            <h2 className="text-sm font-semibold text-gray-700 mb-4">配信履歴</h2>
+            {loadingMessages ? (
+              <p className="text-sm text-gray-400 text-center py-8">読み込み中...</p>
+            ) : messages.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-8">配信履歴がありません</p>
+            ) : (
+              <div className="space-y-3">
+                {messages.map(msg => {
+                  const isOut = msg.direction === 'outgoing'
+                  let displayContent = msg.content
+                  if (msg.messageType === 'flex') {
+                    try {
+                      const parsed = JSON.parse(msg.content)
+                      const texts: string[] = []
+                      const collect = (obj: Record<string, unknown>) => {
+                        if (obj.type === 'text' && typeof obj.text === 'string') texts.push(obj.text as string)
+                        for (const k of ['header','body','footer']) if (obj[k]) collect(obj[k] as Record<string, unknown>)
+                        if (Array.isArray(obj.contents)) obj.contents.forEach((c) => collect(c as Record<string, unknown>))
+                      }
+                      collect(parsed)
+                      displayContent = texts.slice(0, 3).join(' / ') || '[Flex]'
+                    } catch { displayContent = '[Flex Message]' }
+                  } else if (msg.messageType === 'image') {
+                    displayContent = '[画像]'
+                  }
+                  return (
+                    <div key={msg.id} className="flex items-start gap-3">
+                      <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${isOut ? 'bg-green-500' : 'bg-blue-400'}`} />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span className={`text-xs font-medium ${isOut ? 'text-green-700' : 'text-blue-600'}`}>
+                            {isOut ? '送信' : '受信'}
+                          </span>
+                          <span className="text-xs text-gray-400">
+                            {new Date(msg.createdAt).toLocaleString('ja-JP', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                          <span className="text-xs text-gray-300">{msg.messageType}</span>
+                        </div>
+                        <p className="text-sm text-gray-700 truncate">{displayContent}</p>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
-        </div>
+        )}
       </div>
     </div>
   )
