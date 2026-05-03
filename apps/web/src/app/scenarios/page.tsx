@@ -237,10 +237,6 @@ export default function ScenariosPage() {
             </div>
           ))}
         </div>
-      ) : scenarios.length === 0 && !showCreate ? (
-        <div className='bg-white rounded-lg shadow-sm border border-gray-200 p-12 text-center'>
-          <p className='text-gray-500'>シナリオがありません。「新規シナリオ」から作成してください。</p>
-        </div>
       ) : (
         <div className='grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'>
           {scenarios.map(scenario => (
