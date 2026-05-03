@@ -52,7 +52,6 @@ export default function BroadcastForm({ tags, onSuccess, onCancel }: BroadcastFo
       try {
         const res = await api.friends.count({
           accountId: selectedAccountId ?? undefined,
-          tagId: form.targetType === 'tag' && form.targetTagId ? form.targetTagId : undefined,
         })
         if (res.success) setTargetCount(res.data.count)
       } catch { setTargetCount(null) }
