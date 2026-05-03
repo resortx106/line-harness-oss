@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import type { Tag } from '@line-crm/shared'
 import { api, type ApiBroadcast } from '@/lib/api'
 import { useAccount } from '@/contexts/account-context'
@@ -40,9 +40,27 @@ export default function BroadcastForm({ tags, onSuccess, onCancel }: BroadcastFo
     sendNow: true,
   })
   const [saving, setSaving] = useState(false)
+  const [targetCount, setTargetCount] = useState<number | null>(null)
+  const [countLoading, setCountLoading] = useState(false)
   const [error, setError] = useState('')
 
-  const handleSave = async () => {
+  
+
+  useEffect(() => {
+    const fetchCount = async () => {
+      setCountLoading(true)
+      try {
+        const res = await api.friends.count({
+          accountId: selectedAccountId ?? undefined,
+          tagId: form.targetType === 'tag' && form.targetTagId ? form.targetTagId : undefined,
+        })
+        if (res.success) setTargetCount(res.data.count)
+      } catch { setTargetCount(null) }
+      setCountLoading(false)
+    }
+    fetchCount()
+  }, [form.targetType, form.targetTagId, selectedAccountId])
+const handleSave = async () => {
     if (!form.title.trim()) { setError('配信タイトルを入力してください'); return }
     if (!form.messageContent.trim()) { setError('メッセージ内容を入力してください'); return }
     if (form.messageType === 'flex') {
@@ -234,6 +252,16 @@ export default function BroadcastForm({ tags, onSuccess, onCancel }: BroadcastFo
               ))}
             </select>
           )}
+        </div>
+
+        {/* 配信対象人数 */}
+        <div className="flex items-center gap-2 text-sm">
+          <span className="text-gray-500">配信対象人数:</span>
+          {countLoading ? (
+            <span className="text-gray-400">算出中...</span>
+          ) : targetCount !== null ? (
+            <span className="font-semibold text-green-600">{targetCount.toLocaleString('ja-JP')} 人</span>
+          ) : null}
         </div>
 
         {/* Schedule */}
